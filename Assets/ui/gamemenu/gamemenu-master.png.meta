@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gamemenu Master",
+      "Type": "jpg",
+      "Org": "local",
+      "Ident": "gamemenu_master",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "ui/gamemenu/gamemenu-master.png"
+      }
+    }
+  }
+}
