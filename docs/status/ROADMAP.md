@@ -24,6 +24,7 @@
 - **Dépendances** : étape 1.
 - **Critères de validation** : deux instances se connectent, se voient dans les logs/`get_network_status`, sans code de gameplay.
 - **Hors périmètre** : pawn, mouvement, UI.
+- **Statut** : `En cours`. Présent (commit `97b27d1`) : `Assets/scenes/Tests/GameplayTest.scene` avec un `NetworkGameManager` (`Sandbox.NetworkHelper`, `StartServer: true`), prefab joueur assigné, quatre points de spawn — une première exécution avec plusieurs joueurs est possible. Reste à valider (voir [CURRENT_STATE.md](CURRENT_STATE.md)) : test à deux instances réelles, visibilité croisée host/client, ownership, late join, déconnexion, nettoyage réseau, absence d'erreurs dans les logs. Non déclaré terminé.
 
 ## 4. Pawn joueur minimal
 
@@ -31,6 +32,7 @@
 - **Dépendances** : étape 3.
 - **Critères de validation** : testé à deux instances (voir [../development/TESTING_MULTIPLAYER.md](../development/TESTING_MULTIPLAYER.md)) — ownership correcte, pas de doublon.
 - **Hors périmètre** : mouvement, caméra, HUD.
+- **Statut** : `En cours`. Présent (commit `97b27d1`) : `Assets/Prefabs/Players/kodoku_player.prefab`, un pawn stock s&box (`Sandbox.PlayerController`, `Rigidbody`, mouvement standard, modèle citizen visible). Reste à faire : validation réseau complète à deux instances, identité Kodoku (résolution du pawn local, distincte de `IsProxy` brut — voir [../architecture/PLAYER_ARCHITECTURE.md](../architecture/PLAYER_ARCHITECTURE.md)), composants personnalisés Kodoku (aucun n'existe sur ce prefab à ce jour), séparation claire entre état réseau et présentation locale, règles de mort et respawn futures. Non déclaré terminé.
 
 ## 5. Caméra et présentation locale
 
@@ -38,6 +40,7 @@
 - **Dépendances** : étape 4.
 - **Critères de validation** : testé à deux instances — chaque client garde sa propre vue, pas de vol/gel de caméra.
 - **Hors périmètre** : HUD de gameplay, inputs de gameplay au-delà du regard/déplacement de base.
+- **Statut** : `Prototype stock uniquement`. La caméra de `GameplayTest.scene` (`_Local/Main Camera`) est actuellement pilotée par le `Sandbox.PlayerController` stock du prefab joueur (`UseCameraControls: true`) via le mécanisme natif `IsMainCamera` du moteur — aucune architecture locale Kodoku dédiée (composant caméra local explicite) n'est encore implémentée. Voir la section « Caméra — point de vigilance » de [CURRENT_STATE.md](CURRENT_STATE.md) pour les risques à vérifier avant de considérer cette étape avancée.
 
 ## 6. Première interaction complète
 

@@ -16,3 +16,12 @@ Création de l'ensemble de la documentation initiale pour la reconstruction de K
 - `.gitignore` mis à jour pour ignorer `CLAUDE.local.md` et `.claude/settings.local.json`.
 
 Sources principales utilisées : inspection directe du dépôt Kodoku (git, arborescence, Claude Bridge en lecture seule), vault Obsidian (`SBOX_DOC_INDEX.md`, `SBOX_NETWORKING_SUMMARY.md`, `SBOX_OPEN_QUESTIONS.md`), et lecture ciblée de `Kodoku_Legacy/CLAUDE.md` (sections ownership/caméra) pour identifier des intentions et erreurs architecturales — sans copie de code. Aucun fichier C#, scène, prefab ou asset n'a été modifié pendant cette mission.
+
+## 2026-07-09 — Mise à jour d'état suite au commit `97b27d1`
+
+Mise à jour de `docs/status/CURRENT_STATE.md` et `docs/status/ROADMAP.md` pour refléter l'inspection réelle du commit `97b27d1` (« Ajout de la scène réseau et du prefab joueur minimal ») :
+
+- `CURRENT_STATE.md` : ajout de la scène `GameplayTest.scene` et du prefab `kodoku_player.prefab` en « Fonctionnel ou présent », nouvelle section « En cours / non validé » listant ce qui reste à tester à deux instances, nouvelle section « Caméra — point de vigilance » (usage du `Sandbox.PlayerController` stock, pas encore d'architecture caméra locale Kodoku dédiée), section « Non implémenté » recentrée sur ce qui n'a réellement aucune trace dans le projet.
+- `ROADMAP.md` : statuts explicites ajoutés aux étapes 3 (« Laboratoire réseau minimal », `En cours`), 4 (« Pawn joueur minimal », `En cours`) et 5 (« Caméra et présentation locale », `Prototype stock uniquement`).
+
+Aucune fonctionnalité n'a été déclarée terminée ou validée sans preuve de test réel — Claude Bridge était déconnecté au moment de cette mise à jour (éditeur s&box fermé), l'inspection a été faite par lecture directe des fichiers `.scene`/`.prefab` et de l'historique Git. Aucun fichier C#, scène, prefab, asset ou configuration n'a été modifié pendant cette mise à jour.
