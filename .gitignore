@@ -27,3 +27,7 @@ code/Properties/*
 
 # Exported / standalone games
 Exports/
+
+# Claude Code local-only files
+CLAUDE.local.md
+.claude/settings.local.json
