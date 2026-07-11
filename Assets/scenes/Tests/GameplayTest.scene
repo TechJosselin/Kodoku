@@ -228,6 +228,74 @@
             }
           ],
           "Children": []
+        },
+        {
+          "__guid": "82f37181-6137-4555-a32a-585bc4758188",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "UI",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [],
+          "Children": [
+            {
+              "__guid": "44448bb4-d808-41df-a82b-58000b41c5bf",
+              "__version": 2,
+              "Flags": 0,
+              "Name": "GameHud",
+              "Position": "0,0,0",
+              "Rotation": "0,0,0,1",
+              "Scale": "1,1,1",
+              "Tags": "",
+              "Enabled": true,
+              "NetworkMode": 2,
+              "NetworkFlags": 0,
+              "NetworkOrphaned": 0,
+              "NetworkTransmit": true,
+              "OwnerTransfer": 1,
+              "Components": [
+                {
+                  "__type": "Sandbox.ScreenPanel",
+                  "__guid": "da74cd93-8ab4-4ba0-b322-d48bed0f6616",
+                  "__enabled": true,
+                  "Flags": 512,
+                  "AutoScreenScale": true,
+                  "OnComponentDestroy": null,
+                  "OnComponentDisabled": null,
+                  "OnComponentEnabled": null,
+                  "OnComponentFixedUpdate": null,
+                  "OnComponentStart": null,
+                  "OnComponentUpdate": null,
+                  "Opacity": 1,
+                  "Scale": 1,
+                  "ScaleStrategy": "ConsistentHeight",
+                  "TargetCamera": null,
+                  "ZIndex": 100
+                },
+                {
+                  "__type": "Kodoku.UI.GameHud",
+                  "__guid": "8497666e-dc6c-45c6-951a-0eddff277a0d",
+                  "__enabled": true,
+                  "Flags": 512,
+                  "OnComponentDestroy": null,
+                  "OnComponentDisabled": null,
+                  "OnComponentEnabled": null,
+                  "OnComponentFixedUpdate": null,
+                  "OnComponentStart": null,
+                  "OnComponentUpdate": null
+                }
+              ],
+              "Children": []
+            }
+          ]
         }
       ]
     },

@@ -1,0 +1,18 @@
+GameHud {
+	position: absolute;
+	top: 24px;
+	left: 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 12px 16px;
+	background-color: rgba( 0, 0, 0, 0.5 );
+	border-radius: 4px;
+	font-family: Poppins, sans-serif;
+	pointer-events: none;
+
+	.vital {
+		color: white;
+		font-size: 16px;
+	}
+}

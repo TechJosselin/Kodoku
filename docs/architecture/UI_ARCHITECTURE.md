@@ -1,6 +1,8 @@
 # Architecture UI
 
-**Statut : architecture visée, non implémentée.** Aucun code UI (Razor/SCSS) n'existe dans le projet actuel — seuls des PNG (fonds de panneaux, icônes de slots, icônes de vitals) sont conservés sous `Assets/ui/` depuis l'ancienne version. Voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) et [../development/ASSET_MIGRATION.md](../development/ASSET_MIGRATION.md).
+**Statut : architecture visée, partiellement implémentée.** Un premier HUD local existe, `Code/UI/Hud/GameHud.razor` (affichage brut des vitals du pawn local, sans design final) — **terminé pour sa version minimale, validé par test réel host/client** (chaque instance n'affiche que ses propres vitals, mise à jour temps réel) le 2026-07-11, voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md). Aucun menu, aucune interaction UI. Les PNG (fonds de panneaux, icônes de slots, icônes de vitals) conservés sous `Assets/ui/` depuis l'ancienne version ne sont pas encore consommés par ce HUD. Voir aussi [../development/ASSET_MIGRATION.md](../development/ASSET_MIGRATION.md).
+
+**Point technique confirmé par test réel** : un `PanelComponent` Razor s&box ne reconstruit son contenu que si sa méthode `BuildHash()` retourne une valeur différente de la précédente — sans la surcharger avec les valeurs pertinentes (et l'identité de ce qu'il observe, pas seulement ses valeurs), un panneau peut rester figé sur son premier rendu indéfiniment. À reproduire pour tout futur panneau Razor qui affiche un état qui change au cours du temps.
 
 ## Principes
 
@@ -17,5 +19,5 @@ Sous `Assets/ui/` : icônes d'items par catégorie, icônes de vitals (santé/fa
 
 ## Éléments encore ouverts
 
-- Structure Razor/SCSS cible (aucune décision prise, aucun fichier existant).
+- Structure Razor/SCSS cible pour les menus (inventaire, pause) — le HUD est le seul précédent à ce jour, pas encore de convention établie au-delà.
 - Réutilisation effective des PNG conservés une fois la mise en page UI reconçue.

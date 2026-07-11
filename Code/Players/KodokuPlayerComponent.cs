@@ -1,4 +1,5 @@
 using System;
+using Kodoku.Player.Vitals;
 
 namespace Kodoku.Player;
 
@@ -25,13 +26,17 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 
 	public PlayerController PlayerController { get; private set; }
 
-	protected override void OnAwake()
-	{
-		PlayerController = Components.Get<PlayerController>();
-	}
+	public PlayerVitalsComponent PlayerVitals { get; private set; }
 
 	protected override void OnStart()
 	{
+		// Résolu ici plutôt qu'en OnAwake : OnAwake d'un composant peut s'exécuter avant que
+		// les composants suivants du même GameObject (ex. PlayerVitalsComponent, listé après
+		// dans le prefab) soient pleinement prêts. OnStart s'exécute après l'OnAwake de tous
+		// les composants du GameObject — résolution de références sœurs fiable à ce stade.
+		PlayerController = Components.Get<PlayerController>();
+		PlayerVitals = Components.Get<PlayerVitalsComponent>();
+
 		if ( IsProxy )
 		{
 			Log.Info( $"[KodokuPlayerComponent] Remote proxy registered: {GameObject.Name}" );

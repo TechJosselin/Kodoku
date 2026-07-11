@@ -4,7 +4,7 @@ Ce fichier est le point d'entrée principal de Claude Code pour le projet **Kodo
 
 ## Le projet
 
-**Kodoku** est un jeu s&box (survie/exploration coop) actuellement **reconstruit presque depuis zéro**. Le dépôt ne contient à ce stade qu'une fondation de projet vide (`Code/Assembly.cs`/`Editor/Assembly.cs` réduits à des `global using`) et certains assets PNG d'interface conservés de l'ancienne version — aucun système de gameplay (items, inventaire, joueur, réseau) n'existe encore dans le code actuel. Voir [docs/status/CURRENT_STATE.md](docs/status/CURRENT_STATE.md) pour l'état factuel à jour.
+**Kodoku** est un jeu s&box (survie/exploration coop) actuellement **reconstruit presque depuis zéro**. Le dépôt contient une fondation de projet quasi vide (`Editor/Assembly.cs` réduit à des `global using`) et certains assets PNG d'interface conservés de l'ancienne version. Trois premiers systèmes existent, tous validés par test réel host/client : `KodokuPlayerComponent` (identification du pawn local/proxy), `PlayerVitalsComponent` (santé/endurance/faim/soif/radiation, host-authoritative) et un HUD local minimal (`Code/UI/Hud/GameHud.razor`). Aucun autre système (items, inventaire, mort/respawn, interaction, sauvegarde) n'existe encore dans le code actuel. Voir [docs/status/CURRENT_STATE.md](docs/status/CURRENT_STATE.md) pour l'état factuel à jour.
 
 L'ancien projet est conservé séparément sous le nom **Kodoku_Legacy**, en lecture seule, comme référence historique uniquement — voir [docs/development/LEGACY_REFERENCE_POLICY.md](docs/development/LEGACY_REFERENCE_POLICY.md). Ne jamais copier directement son code, ses scènes ou ses prefabs.
 

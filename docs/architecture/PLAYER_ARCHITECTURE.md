@@ -1,6 +1,6 @@
 # Architecture joueur
 
-**Statut : architecture visée, non implémentée.** Aucun pawn, contrôleur ou composant joueur n'existe dans le code actuel de Kodoku — voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md). Ce document décrit la séparation de responsabilités à respecter quand ce code sera écrit, et capitalise sur des erreurs identifiées sur l'ancienne version du projet (voir [../development/LEGACY_REFERENCE_POLICY.md](../development/LEGACY_REFERENCE_POLICY.md)) — sans en reprendre le code.
+**Statut : architecture visée, partiellement implémentée.** Deux composants joueur existent : `KodokuPlayerComponent` (`Code/Players/KodokuPlayerComponent.cs`), qui couvre la responsabilité **Identité** ci-dessous (résolution du pawn local vs. proxy), et `PlayerVitalsComponent` (`Code/Players/Vitals/PlayerVitalsComponent.cs`), un premier morceau de **État de gameplay** (santé/endurance/faim/soif/radiation, host-authoritative) — voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) pour l'état factuel à jour. Toutes les autres responsabilités listées ci-dessous restent non implémentées. Ce document décrit la séparation de responsabilités à respecter à mesure que ce code sera écrit, et capitalise sur des erreurs identifiées sur l'ancienne version du projet (voir [../development/LEGACY_REFERENCE_POLICY.md](../development/LEGACY_REFERENCE_POLICY.md)) — sans en reprendre le code.
 
 ## Séparation de responsabilités envisagée
 
@@ -9,7 +9,7 @@ Un « joueur » n'est pas un objet monolithique. Il se décompose en responsabil
 - **Pawn réseau** — le `GameObject` networké lui-même, son ownership, son cycle de spawn/despawn.
 - **Identité** — quel `Connection` possède ce pawn, distinct de « quel client regarde à travers ce pawn » (voir la note ci-dessous sur `Local`).
 - **Mouvement** — logique de déplacement, soumise à une stratégie d'autorité pas encore tranchée (voir [../status/OPEN_QUESTIONS.md](../status/OPEN_QUESTIONS.md)).
-- **État de gameplay** — santé, inventaire, statut : voir [MULTIPLAYER_ARCHITECTURE.md](MULTIPLAYER_ARCHITECTURE.md) pour l'autorité de ces données.
+- **État de gameplay** — santé, inventaire, statut : voir [MULTIPLAYER_ARCHITECTURE.md](MULTIPLAYER_ARCHITECTURE.md) pour l'autorité de ces données. Premier morceau implémenté : `PlayerVitalsComponent` (santé/endurance/faim/soif/radiation), sans inventaire ni progression.
 - **Apparence** — modèle, tenue équipée : donnée répliquée mais dont le rendu est décidé localement par chaque client.
 - **Animations** — pilotées par l'état répliqué, jouées localement.
 - **Points d'ancrage** — attaches (main, dos, etc.) pour objets tenus/équipés.
@@ -26,7 +26,9 @@ Ce principe n'est pas une préférence de style : sur l'ancienne version du proj
 
 ## `Local` vs `IsProxy`
 
-Comme détaillé dans [MULTIPLAYER_ARCHITECTURE.md](MULTIPLAYER_ARCHITECTURE.md#ownership-confirmé), déterminer « est-ce mon propre pawn » ne doit pas reposer uniquement sur `IsProxy` au moment du spawn (retard confirmé par test réel). La logique exacte de résolution du pawn local pour Kodoku reste à concevoir — ne pas supposer qu'une solution existe déjà.
+Comme détaillé dans [MULTIPLAYER_ARCHITECTURE.md](MULTIPLAYER_ARCHITECTURE.md#ownership-confirmé), déterminer « est-ce mon propre pawn » ne doit pas reposer uniquement sur `IsProxy` au moment du spawn (retard confirmé par test réel).
+
+**Résolu pour Kodoku** : `KodokuPlayerComponent` (`Code/Players/KodokuPlayerComponent.cs`) expose `IsLocalPlayer` (calculé en direct depuis `IsProxy`, jamais mis en cache) et une référence statique `Local`, tenue à jour via `IGameObjectNetworkEvents.StartControl`/`StopControl`. Ce mécanisme seul ne suffisait pas : le pawn du host est possédé par lui dès sa création, sans transition détectable par `StartControl` (qui ne réagit qu'à un *changement* de contrôle) — une vérification complémentaire dans `OnStart` a été nécessaire, découverte par test réel à deux instances le 2026-07-11 (voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md)). `KodokuPlayerComponent` ne couvre que l'identité — pas encore la séparation présentation/état réseau évoquée plus haut.
 
 ## Éléments encore ouverts
 

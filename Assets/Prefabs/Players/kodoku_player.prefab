@@ -28,6 +28,23 @@
         "OnComponentUpdate": null
       },
       {
+        "__type": "Kodoku.Player.Vitals.PlayerVitalsComponent",
+        "__guid": "6b1a23cd-c934-42ab-9b01-a74a8b82c50d",
+        "__enabled": true,
+        "Flags": 0,
+        "MaxHealth": 100,
+        "MaxHunger": 100,
+        "MaxRadiation": 100,
+        "MaxStamina": 100,
+        "MaxThirst": 100,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
+      },
+      {
         "__type": "Sandbox.PlayerController",
         "__guid": "e153d886-b4f6-44b5-b4d2-553f9df25c0c",
         "__enabled": true,
