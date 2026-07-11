@@ -6,9 +6,9 @@ paths:
 
 # C# — Kodoku
 
-S'applique uniquement au code source du nouveau projet Kodoku (`Code/`, assembly jeu, et `Editor/`, assembly éditeur — confirmés comme les deux dossiers de code du projet lors de l'inspection initiale du dépôt). Ne s'applique **pas** à `Libraries/` (dont Claude Bridge), aux fichiers générés (`**/obj/**`, `**/bin/**`), à `Kodoku_Legacy`, ni au vault Obsidian.
+S'applique uniquement au code source du nouveau projet Kodoku (`Code/`, assembly jeu, et `Editor/`, assembly éditeur — confirmés comme les deux dossiers de code du projet lors de l'inspection initiale du dépôt). Ne s'applique **pas** à `Libraries/`, aux fichiers générés (`**/obj/**`, `**/bin/**`), à `Kodoku_Legacy`, ni au vault Obsidian.
 
-Le dossier `Code/` ne contient à ce stade que `Assembly.cs` (fondation vide) — les règles ci-dessous s'appliquent à mesure que du code y est ajouté, elles ne décrivent rien d'existant.
+Le dossier `Code/` ne contient encore que `Assembly.cs` et un premier composant (`Code/Players/KodokuPlayerComponent.cs`) — les règles ci-dessous s'appliquent à mesure que du code y est ajouté, elles ne décrivent pas encore un ensemble large.
 
 ## Attendu
 
@@ -21,6 +21,6 @@ Le dossier `Code/` ne contient à ce stade que `Assembly.cs` (fondation vide) �
 - **Préciser l'autorité réseau pour tout composant de gameplay** : qui écrit l'état, qui le lit, ce qui est répliqué — voir [.claude/rules/multiplayer.md](multiplayer.md).
 - **Ne pas ajouter de couche d'abstraction sans besoin concret.** Pas d'interface ou de système générique pour un seul cas d'usage actuel.
 - **Code lisible et testable** — pas de règle de style arbitraire au-delà de ce que le projet a déjà adopté.
-- **Ne jamais référencer Claude Bridge depuis le runtime** — voir [.claude/rules/sbox-bridge.md](sbox-bridge.md).
+- **Ne jamais référencer un outil de développement externe depuis le runtime** — le code de `Code/`/`Editor/` doit compiler et fonctionner indépendamment de tout outillage tiers.
 
 Ces règles ne sont pas des conventions arbitraires : elles reflètent des erreurs constatées sur l'ancienne version du projet (référencement fragile, gestion d'autorité peu claire) — voir [docs/development/LEGACY_REFERENCE_POLICY.md](../../docs/development/LEGACY_REFERENCE_POLICY.md). Elles seront affinées à mesure que du code réel existe dans `Code/`.

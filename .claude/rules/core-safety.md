@@ -12,4 +12,4 @@ Règles globales, applicables à toute intervention sur ce dépôt, indépendamm
 - Vérifier l'état Git (`git status`) avant toute modification importante et après, pour confirmer que seuls les fichiers attendus ont changé.
 - Signaler clairement toute incertitude plutôt que de deviner silencieusement — en particulier pour tout ce qui touche au comportement réseau s&box non confirmé (voir [docs/status/OPEN_QUESTIONS.md](../../docs/status/OPEN_QUESTIONS.md)).
 
-Ces règles s'ajoutent à celles, plus spécifiques, de [multiplayer.md](multiplayer.md), [sbox-bridge.md](sbox-bridge.md), [git-workflow.md](git-workflow.md), [documentation.md](documentation.md) et [csharp.md](csharp.md).
+Ces règles s'ajoutent à celles, plus spécifiques, de [multiplayer.md](multiplayer.md), [git-workflow.md](git-workflow.md), [documentation.md](documentation.md) et [csharp.md](csharp.md).

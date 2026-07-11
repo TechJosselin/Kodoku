@@ -29,7 +29,7 @@ Cette liste est un point de départ, pas un contrat figé : un domaine peut êtr
 - Un domaine de gameplay (Players, Items, Inventory, Interaction, World, AI) peut dépendre de Core et Networking.
 - UI et Audio **consomment** l'état des autres domaines ; ils ne portent jamais d'autorité de gameplay (voir [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md)).
 - Persistence lit/écrit l'état des domaines de gameplay ; elle ne doit pas devenir un point de couplage bidirectionnel (les domaines de gameplay ne doivent pas dépendre de Persistence pour fonctionner en mémoire).
-- Aucun domaine runtime ne dépend d'un outil de développement. En particulier, **aucune dépendance runtime envers Claude Bridge** (`Libraries/sboxskinsgg.claudebridge/`) — voir [../../.claude/rules/sbox-bridge.md](../../.claude/rules/sbox-bridge.md).
+- Aucun domaine runtime ne dépend d'un outil de développement externe au projet.
 
 ## Séparation données / logique runtime / présentation
 

@@ -10,7 +10,7 @@ Décisions non encore tranchées. Ne pas les résoudre arbitrairement dans le co
 - **Système de sauvegarde** — mécanisme et portée (état joueur seul, ou état monde complet), fréquence, format.
 - **Stratégie de transition entre zones** — dépend de la structure de scènes ci-dessus.
 - **Gestion de la reconnexion** — récupération d'état après déconnexion, ré-association à un pawn existant vs. nouveau spawn.
-- **Choix de Libraries externes éventuelles** — au-delà de Claude Bridge (outil de développement uniquement, jamais une dépendance runtime), aucune Library de gameplay n'est décidée à ce jour.
+- **Choix de Libraries externes éventuelles** — aucune Library de gameplay n'est décidée à ce jour.
 
 ## Comportement moteur s&box non confirmé (source : vault Obsidian, `SBOX_OPEN_QUESTIONS.md`)
 

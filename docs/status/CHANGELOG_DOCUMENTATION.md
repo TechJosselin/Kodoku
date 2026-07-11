@@ -25,3 +25,14 @@ Mise à jour de `docs/status/CURRENT_STATE.md` et `docs/status/ROADMAP.md` pour 
 - `ROADMAP.md` : statuts explicites ajoutés aux étapes 3 (« Laboratoire réseau minimal », `En cours`), 4 (« Pawn joueur minimal », `En cours`) et 5 (« Caméra et présentation locale », `Prototype stock uniquement`).
 
 Aucune fonctionnalité n'a été déclarée terminée ou validée sans preuve de test réel — Claude Bridge était déconnecté au moment de cette mise à jour (éditeur s&box fermé), l'inspection a été faite par lecture directe des fichiers `.scene`/`.prefab` et de l'historique Git. Aucun fichier C#, scène, prefab, asset ou configuration n'a été modifié pendant cette mise à jour.
+
+## 2026-07-11 — Suppression de Claude Bridge et mise à jour de la documentation
+
+Claude Bridge (`Libraries/sboxskinsgg.claudebridge/`) a été désinstallé du projet par l'utilisateur. Documentation mise à jour pour ne plus le référencer comme outil disponible :
+
+- `CLAUDE.md` : section « Compilation et tests » réécrite (plus aucun outil de vérification de compilation externe disponible), retrait de la règle de non-dépendance runtime envers Claude Bridge (devenue sans objet), retrait de la mention dans l'index des règles détaillées.
+- `.claude/rules/sbox-bridge.md` supprimé — règle entièrement dédiée à un outil qui n'existe plus dans le dépôt.
+- `.claude/rules/csharp.md`, `docs/architecture/PROJECT_ARCHITECTURE.md`, `docs/development/DEVELOPMENT_WORKFLOW.md`, `docs/status/OPEN_QUESTIONS.md` : retrait des mentions de Claude Bridge, reformulation générique (« outil de développement externe »).
+- `docs/status/CURRENT_STATE.md` : nouvelle entrée datée reflétant l'ajout de `Code/Players/KodokuPlayerComponent.cs` (premier composant Kodoku, attaché à `kodoku_player.prefab`) et l'absence, désormais, de tout outil de vérification de compilation ou de logs automatisé.
+
+Les entrées précédentes de ce changelog mentionnant Claude Bridge (ci-dessus) sont conservées telles quelles : elles décrivent un état passé réel au moment où elles ont été écrites, pas la situation actuelle.

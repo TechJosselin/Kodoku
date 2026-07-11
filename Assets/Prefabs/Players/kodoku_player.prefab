@@ -16,6 +16,18 @@
     "OwnerTransfer": 1,
     "Components": [
       {
+        "__type": "Kodoku.Player.KodokuPlayerComponent",
+        "__guid": "9b14f98e-bbf1-4f1b-abab-95ec59b71e89",
+        "__enabled": true,
+        "Flags": 0,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
+      },
+      {
         "__type": "Sandbox.PlayerController",
         "__guid": "e153d886-b4f6-44b5-b4d2-553f9df25c0c",
         "__enabled": true,

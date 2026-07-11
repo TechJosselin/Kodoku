@@ -10,14 +10,9 @@ L'ancien projet est conservé séparément sous le nom **Kodoku_Legacy**, en lec
 
 ## Compilation et tests
 
-Il n'y a pas de commande CLI de build/lint/test autonome pour le code du jeu : `Code/kodoku.csproj` référence les DLL du moteur via des chemins relatifs vers l'installation Steam locale de s&box (`../../../../SteamLibrary/steamapps/common/sbox/...`), propres à la machine — un `dotnet build` direct n'est pas fiable. La compilation passe par :
+Il n'y a pas de commande CLI de build/lint/test autonome pour le code du jeu : `Code/kodoku.csproj` référence les DLL du moteur via des chemins relatifs vers l'installation Steam locale de s&box (`../../../../SteamLibrary/steamapps/common/sbox/...`), propres à la machine — un `dotnet build` direct n'est pas fiable. La compilation passe uniquement par l'éditeur s&box (hotload automatique à la sauvegarde d'un fichier) : aucun outil ne permet de vérifier une compilation depuis une session Claude Code, la confirmation se fait dans l'éditeur.
 
-- l'éditeur s&box (hotload automatique à la sauvegarde d'un fichier) ;
-- Claude Bridge en lecture seule (`get_compile_errors`, `read_log`) — voir [.claude/rules/sbox-bridge.md](.claude/rules/sbox-bridge.md).
-
-Aucune suite de tests automatisés n'existe pour le code du jeu (`Code/` ne contient encore que `Assembly.cs`). Toute fonctionnalité réseau se valide avec **au moins deux instances** (host + client), jamais par un test solo ni par relecture de code — voir [docs/development/TESTING_MULTIPLAYER.md](docs/development/TESTING_MULTIPLAYER.md).
-
-`Libraries/sboxskinsgg.claudebridge/UnitTests/` (`dotnet build`/`dotnet test` via `.vscode/tasks.json`) est la suite de tests de Claude Bridge lui-même — un outil de développement tiers, pas du code de gameplay Kodoku.
+Aucune suite de tests automatisés n'existe pour le code du jeu. Toute fonctionnalité réseau se valide avec **au moins deux instances** (host + client), jamais par un test solo ni par relecture de code — voir [docs/development/TESTING_MULTIPLAYER.md](docs/development/TESTING_MULTIPLAYER.md).
 
 ## Règle non négociable : coop/multiplayer-first
 
@@ -28,7 +23,6 @@ Le fonctionnement en solo ne suffit **jamais** à valider une fonctionnalité de
 ## Règles non négociables (résumé)
 
 - Ne jamais copier directement code/architecture/scène depuis `Kodoku_Legacy` — l'ancien projet sert uniquement à comprendre une intention ou identifier une erreur à ne pas reproduire.
-- Kodoku ne doit jamais dépendre de Claude Bridge au runtime. L'absence de Claude Bridge ne doit jamais empêcher le projet de compiler ou de fonctionner — voir [.claude/rules/sbox-bridge.md](.claude/rules/sbox-bridge.md).
 - Pas de commit, push, merge, rebase ou changement de branche sans demande explicite — voir [.claude/rules/git-workflow.md](.claude/rules/git-workflow.md).
 - Pas de suppression massive, pas de nouvelle dépendance, pas de contournement d'erreur de compilation sans validation — voir [.claude/rules/core-safety.md](.claude/rules/core-safety.md).
 - Ne pas inventer un état du projet ou une fonctionnalité comme "déjà implémentée" — vérifier contre le code réel.
@@ -41,7 +35,7 @@ Le fonctionnement en solo ne suffit **jamais** à valider une fonctionnalité de
 - [docs/decisions/](docs/decisions/) — décisions d'architecture (ADR)
 - [docs/status/](docs/status/) — état courant, roadmap, questions ouvertes
 
-Règles détaillées : [.claude/rules/](.claude/rules/) (sécurité, multiplayer, Claude Bridge, Git, documentation, C#).
+Règles détaillées : [.claude/rules/](.claude/rules/) (sécurité, multiplayer, Git, documentation, C#).
 
 ## Chemins locaux
 
