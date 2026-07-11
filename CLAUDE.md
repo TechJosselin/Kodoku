@@ -8,6 +8,17 @@ Ce fichier est le point d'entrée principal de Claude Code pour le projet **Kodo
 
 L'ancien projet est conservé séparément sous le nom **Kodoku_Legacy**, en lecture seule, comme référence historique uniquement — voir [docs/development/LEGACY_REFERENCE_POLICY.md](docs/development/LEGACY_REFERENCE_POLICY.md). Ne jamais copier directement son code, ses scènes ou ses prefabs.
 
+## Compilation et tests
+
+Il n'y a pas de commande CLI de build/lint/test autonome pour le code du jeu : `Code/kodoku.csproj` référence les DLL du moteur via des chemins relatifs vers l'installation Steam locale de s&box (`../../../../SteamLibrary/steamapps/common/sbox/...`), propres à la machine — un `dotnet build` direct n'est pas fiable. La compilation passe par :
+
+- l'éditeur s&box (hotload automatique à la sauvegarde d'un fichier) ;
+- Claude Bridge en lecture seule (`get_compile_errors`, `read_log`) — voir [.claude/rules/sbox-bridge.md](.claude/rules/sbox-bridge.md).
+
+Aucune suite de tests automatisés n'existe pour le code du jeu (`Code/` ne contient encore que `Assembly.cs`). Toute fonctionnalité réseau se valide avec **au moins deux instances** (host + client), jamais par un test solo ni par relecture de code — voir [docs/development/TESTING_MULTIPLAYER.md](docs/development/TESTING_MULTIPLAYER.md).
+
+`Libraries/sboxskinsgg.claudebridge/UnitTests/` (`dotnet build`/`dotnet test` via `.vscode/tasks.json`) est la suite de tests de Claude Bridge lui-même — un outil de développement tiers, pas du code de gameplay Kodoku.
+
 ## Règle non négociable : coop/multiplayer-first
 
 Toute fonctionnalité de gameplay est conçue et testée pour le coop **dès sa création**, jamais ajoutée après coup à une version solo. Pour toute fonctionnalité de gameplay, il faut pouvoir répondre à : qui a l'autorité, qui possède le GameObject, quelles données sont synchronisées, lesquelles sont strictement locales, comment fonctionne le late join, ce qui se passe à la déconnexion, comment c'est testé avec au moins deux instances. Voir [.claude/rules/multiplayer.md](.claude/rules/multiplayer.md) et [docs/architecture/MULTIPLAYER_ARCHITECTURE.md](docs/architecture/MULTIPLAYER_ARCHITECTURE.md).
