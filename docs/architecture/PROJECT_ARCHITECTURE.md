@@ -1,6 +1,6 @@
 # Architecture générale du projet
 
-**Statut : architecture visée, non implémentée.** À la date de rédaction, `Code/` et `Editor/` ne contiennent que des fondations vides (`Assembly.cs`) — voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md). Ce document décrit l'organisation cible des futurs domaines fonctionnels, pas des classes ou une API déjà décidées.
+**Statut : architecture cible, partiellement implémentée.** `Editor/` reste une fondation vide (`Assembly.cs`). `Code/` contient désormais plusieurs domaines réels — Players (`KodokuPlayerComponent`, `PlayerVitalsComponent`), Items (`ItemDefinition`/`ItemInstance`/`WorldItemComponent`/`LootSpawnPointComponent`) et UI (`GameHud.razor`) — tous validés par test réel host/client pour leur périmètre respectif, voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md). Les autres domaines listés ci-dessous (Inventory, Interaction, Persistence, AI, etc.) restent visés, non implémentés. Ce document décrit l'organisation cible des futurs domaines fonctionnels, pas des classes ou une API déjà décidées dans leur totalité.
 
 ## Objectif
 

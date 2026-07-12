@@ -2,6 +2,25 @@
 
 Historique des modifications de la documentation du projet (pas du code — voir l'historique Git pour le code).
 
+## 2026-07-12 — Étude du système Inventory natif s&box et remise en cohérence
+
+Mission strictement documentaire, déclenchée par la découverte dans l'éditeur s&box de composants natifs (« Inventory », « Inventory Item », « Ammo Pickup »). Aucun fichier C#, Razor, prefab, scène, asset ou configuration n'a été modifié. Aucune décision architecturale définitive ni ADR n'a été créé — l'adoption du système natif reste une option non tranchée.
+
+- Créé `docs/research/SBOX_BUILTIN_INVENTORY_EVALUATION.md` — résumé factuel du système natif (`BaseInventoryComponent`/`BaseInventoryItem`/`BaseCombatWeapon`/`BaseAmmoResource`/`BaseAmmoPickup`), correspondance avec l'architecture d'items Kodoku existante, trois stratégies possibles (natif seul / hybride / personnalisé) non tranchées, écarts fonctionnels, questions ouvertes, prototype recommandé non réalisé.
+  - Sources : guide officiel `Facepunch/sbox-docs` (branche `master`, commit `d073589fd123683a94f301415a17f18e1804a2d2`, consulté le 2026-07-12) et commentaires XML de l'assembly moteur installée localement (`Sandbox.Engine.dll`/`.xml`, build Steam `24152323`) — cette dernière source a permis de confirmer des éléments absents du guide narratif (ex. `Sandbox.BaseAmmoPickup`, la méthode `Transfer`, l'existence d'inventaires imbriqués). Les pages `sbox.game/api/*` n'ont pas pu être récupérées (SPA côté client) et ne sont pas utilisées comme source.
+- `CLAUDE.md` : le résumé du projet ne dit plus qu'aucun système d'items n'existe — mentionne `ItemDefinition`/`ItemInstance`/`WorldItemComponent`/`LootSpawnPointComponent` comme implémentés et validés pour leur périmètre, et liste explicitement ce qui reste non implémenté (inventaire, pickup, conteneurs, équipement, consommation, armes, persistance).
+- `docs/status/CURRENT_STATE.md` : nouvelle section « Items et points de loot » (retrait de « Système d'items » de la liste « Non implémenté », ajout des fichiers/assets réels, mention de la découverte du système natif comme piste à l'étude, pas comme intégrée).
+- `docs/status/ROADMAP.md` : étape 7 corrigée — `LootSpawnPointComponent` (Tests A à G) est validé, pas « en attente » ; étape 8 complétée d'une note renvoyant vers l'étude, sans changer son statut.
+- `docs/architecture/ITEM_ARCHITECTURE.md` : nouvelle section courte « Système Inventory natif s&box — piste en cours d'évaluation », renvoyant vers le document de recherche pour le détail.
+- `docs/architecture/PROJECT_ARCHITECTURE.md` : statut introductif corrigé — `Code/` n'est plus décrit comme une fondation vide, distinction entre domaines partiellement implémentés (Players, Items, UI) et domaines encore visés.
+- `docs/status/OPEN_QUESTIONS.md` : la question sur le « format complet des futures `ItemDefinition` » reformulée (une V1 existe déjà, seules les extensions futures restent ouvertes) ; nouvelle question décomposée sur le choix inventaire natif/hybride/personnalisé (source de vérité, grille spatiale, identité stable, persistance, armes/munitions, conteneurs imbriqués, autorité/validation host).
+- `docs/README.md` : nouvelle section « Recherche (`research/`) » indexant `LEGACY_MULTIPLAYER_AUDIT.md` (déjà existant, non indexé jusqu'ici) et `SBOX_BUILTIN_INVENTORY_EVALUATION.md`.
+
+**Commentaires C# potentiellement obsolètes repérés, non modifiés** (mission séparée recommandée), tous dans `Code/Items/Definitions/ItemDefinition.cs` :
+- Commentaire de classe (ligne ~8) : décrit encore `ItemInstance` comme « pas encore implémentée » — `ItemInstance` existe et est validée depuis (`Code/Items/Instances/ItemInstance.cs`).
+- Commentaire sur `WorldPrefabOverride` (lignes ~103-107) : indique « Non consommé par aucun système actuellement — la représentation monde (WorldItemComponent) n'est pas encore implémentée » — `WorldItemComponent` existe, et `WorldPrefabOverride` est effectivement lu par `LootSpawnPointComponent.TrySpawn()`.
+Non corrigés ici — hors périmètre d'une mission strictement documentaire portant sur `docs/` et `CLAUDE.md`.
+
 ## 2026-07-09 — Création de la fondation documentaire
 
 Création de l'ensemble de la documentation initiale pour la reconstruction de Kodoku :

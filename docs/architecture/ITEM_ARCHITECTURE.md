@@ -137,6 +137,14 @@ Zone chargée → seul le host évalue chaque LootSpawnPoint → tirage de Spawn
 
 Aucune erreur (`Log.Error`) ni crash sur l'ensemble des sept tests.
 
+## Système Inventory natif s&box — piste en cours d'évaluation
+
+Le moteur s&box fournit un système natif d'inventaire et d'armes (`Sandbox.BaseInventoryComponent`/`BaseInventoryItem`/`BaseCombatWeapon`, plus la réserve de munitions abstraite `BaseAmmoResource`/`BaseAmmoPickup`), découvert le 2026-07-12. Il est organisé en slots (modes `Hotbar` ou `Buckets`), pas en grille spatiale, et peut fournir gratuitement pickup/drop/switch/transfert entre inventaires, autorité host et, pour les armes, prédiction de tir côté propriétaire — voir le résumé factuel complet dans [../research/SBOX_BUILTIN_INVENTORY_EVALUATION.md](../research/SBOX_BUILTIN_INVENTORY_EVALUATION.md).
+
+Différence structurelle centrale avec l'architecture actuelle : un `BaseInventoryItem` natif est un GameObject/composant vivant en permanence dans la hiérarchie de l'inventaire, alors qu'`ItemInstance` (ci-dessus) est délibérément une classe C# pure, indépendante du moteur. Toute utilisation du système natif devrait clarifier laquelle des deux couches porterait l'identité stable, la quantité et la sauvegarde, pour éviter deux sources de vérité.
+
+**Aucune décision d'adoption, de rejet ou d'architecture hybride n'est prise à ce stade.** Voir le document de recherche pour l'analyse complète (correspondance avec Kodoku, stratégies possibles, questions ouvertes, prototype recommandé non réalisé).
+
 ## Éléments encore ouverts
 
 - Inventaire (conteneurs, transferts, équipement) : non implémenté.

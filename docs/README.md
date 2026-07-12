@@ -37,6 +37,15 @@ Architecture Decision Records — voir [decisions/README.md](decisions/README.md
 | [OPEN_QUESTIONS.md](status/OPEN_QUESTIONS.md) | Décisions non encore tranchées |
 | [CHANGELOG_DOCUMENTATION.md](status/CHANGELOG_DOCUMENTATION.md) | Historique des changements de documentation |
 
+## Recherche (`research/`)
+
+Études ponctuelles — pas des architectures adoptées, voir chaque document pour son statut exact.
+
+| Document | Rôle |
+|---|---|
+| [LEGACY_MULTIPLAYER_AUDIT.md](research/LEGACY_MULTIPLAYER_AUDIT.md) | Audit du socle multiplayer de `Kodoku_Legacy` |
+| [SBOX_BUILTIN_INVENTORY_EVALUATION.md](research/SBOX_BUILTIN_INVENTORY_EVALUATION.md) | Évaluation du système Inventory/Weapons natif s&box, aucune décision d'adoption prise |
+
 ## Sources externes (non versionnées ici)
 
 Le vault Obsidian (recherche s&box) et `Kodoku_Legacy` (archive) sont des ressources externes à ce dépôt — leurs chemins locaux sont dans `CLAUDE.local.md`, pas ici.

@@ -55,7 +55,7 @@
 - **Dépendances** : étape 2 (architecture définie).
 - **Critères de validation** : au moins une définition d'item chargée et instanciée, testée en réseau.
 - **Hors périmètre** : inventaire, équipement.
-- **Statut** : `En cours`. `ItemDefinition`, `ItemInstance` et `WorldItemComponent` (réplication réseau host-authoritative) validés par test réel à deux instances (Tests A à E, 2026-07-12 — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md)). `LootSpawnPointComponent` (génération de loot host-authoritative, V1 mono-item, branche `feature/loot-spawn-points`) implémenté mais non encore validé manuellement (Tests A à F en attente). `LootTableDefinition`, pickup/inventaire restent hors périmètre de cette étape.
+- **Statut** : `En cours`. `ItemDefinition`, `ItemInstance` et `WorldItemComponent` (réplication réseau host-authoritative) validés par test réel à deux instances (Tests A à E, 2026-07-12 — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md)). `LootSpawnPointComponent` (génération de loot host-authoritative, V1 mono-item) également validé par test réel à deux instances (Tests A à G, 2026-07-12 — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md)). `LootTableDefinition`, pickup/inventaire restent hors périmètre de cette étape.
 
 ## 8. Inventaire et équipement
 
@@ -63,6 +63,7 @@
 - **Dépendances** : étapes 6, 7.
 - **Critères de validation** : transfert d'item entre deux joueurs testé à deux instances, sans désynchronisation.
 - **Hors périmètre** : UI définitive (peut utiliser un placeholder minimal).
+- **Note (2026-07-12)** : un système natif d'inventaire/armes s&box (`Sandbox.BaseInventoryComponent`/`BaseInventoryItem`/`BaseCombatWeapon`) a été découvert et est désormais une option à évaluer pour cette étape, aux côtés d'un système entièrement personnalisé ou d'une architecture hybride — voir [../research/SBOX_BUILTIN_INVENTORY_EVALUATION.md](../research/SBOX_BUILTIN_INVENTORY_EVALUATION.md). Aucune décision prise, statut de l'étape inchangé.
 
 ## 9. Objets du monde
 
