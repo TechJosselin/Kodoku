@@ -101,6 +101,14 @@
         "RigidbodyFlags": 0,
         "SleepThreshold": 2,
         "StartAsleep": false
+      },
+      {
+        "__type": "Kodoku.Items.WorldItemComponent",
+        "__guid": "161690d2-cbb4-45fe-8978-55acbdba8778",
+        "__enabled": true,
+        "Flags": 0,
+        "Definition": "data/items/consumables/drinks/water_bottle.item",
+        "InitialQuantity": 1
       }
     ],
     "Children": [],
