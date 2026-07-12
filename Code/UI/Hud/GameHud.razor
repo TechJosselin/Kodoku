@@ -1,0 +1,45 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using Kodoku.Player;
+@using Kodoku.Player.Vitals;
+@namespace Kodoku.UI
+@inherits PanelComponent
+
+<root>
+	@if ( Vitals is not null )
+	{
+		<div class="vital">Health: @Format( Vitals.Health ) / @Format( Vitals.MaxHealth )</div>
+		<div class="vital">Stamina: @Format( Vitals.Stamina ) / @Format( Vitals.MaxStamina )</div>
+		<div class="vital">Hunger: @Format( Vitals.Hunger ) / @Format( Vitals.MaxHunger )</div>
+		<div class="vital">Thirst: @Format( Vitals.Thirst ) / @Format( Vitals.MaxThirst )</div>
+		<div class="vital">Radiation: @Format( Vitals.Radiation ) / @Format( Vitals.MaxRadiation )</div>
+	}
+</root>
+
+@code
+{
+	// Lu à chaque frame, jamais mis en cache : ne peut donc jamais pointer vers un pawn
+	// détruit, fonctionne que le pawn local existe déjà, n'existe pas encore, ou soit
+	// remplacé (déconnexion/reconnexion) sans abonnement à gérer. Le HUD ne cherche jamais
+	// le "premier joueur" de la scène — uniquement KodokuPlayerComponent.Local.
+	PlayerVitalsComponent Vitals => KodokuPlayerComponent.Local?.PlayerVitals;
+
+	// Un panneau Razor ne reconstruit son contenu que si BuildHash() change de valeur — sans ça,
+	// le premier rendu (fait avant même qu'un pawn local existe) reste figé pour toujours.
+	// Inclut KodokuPlayerComponent.Local (identité, pas seulement les valeurs) : un changement
+	// de pawn local (déconnexion/reconnexion) dont les nouvelles vitals coïncideraient par
+	// hasard avec les précédentes (ex. deux pawns fraîchement spawnés à 100/100/100/100/0) ne
+	// changerait pas le hash sans ça, et le HUD resterait figé sur l'ancien pawn.
+	protected override int BuildHash()
+	{
+		var local = KodokuPlayerComponent.Local;
+		var vitals = local?.PlayerVitals;
+		if ( vitals is null )
+			return HashCode.Combine( "no-local-player", local );
+
+		return HashCode.Combine( local, vitals.Health, vitals.Stamina, vitals.Hunger, vitals.Thirst, vitals.Radiation );
+	}
+
+	static string Format( float value ) => value.ToString( "0" );
+}

@@ -1,17 +1,17 @@
 {
   "Title": "Kodoku",
   "Type": "game",
-  "Org": "local",
-  "Ident": "kodoku",
+  "Org": "scrz",
+  "Ident": "kodoku_test",
   "Schema": 1,
   "IncludeSourceFiles": false,
-  "Resources": null,
+  "Resources": "/ui/**",
   "PackageReferences": [],
   "EditorReferences": null,
   "Mounts": null,
   "IsStandaloneOnly": false,
   "Metadata": {
-    "MaxPlayers": 64,
+    "MaxPlayers": 4,
     "MinPlayers": 1,
     "TickRate": 50,
     "GameNetworkType": "Multiplayer",
@@ -23,6 +23,7 @@
     "PerMapRanking": false,
     "LeaderboardType": "None",
     "CsProjName": "",
-    "StartupScene": "scenes/minimal.scene"
+    "StartupScene": "scenes/tests/gameplaytest.scene",
+    "LaunchMode": "Normal"
   }
 }
