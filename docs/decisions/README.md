@@ -25,5 +25,6 @@ Ce dossier documente les décisions d'architecture **durables** de Kodoku — pa
 | [ADR-0002](ADR-0002-HOST-AUTHORITY.md) | Host authority | Acceptée |
 | [ADR-0003](ADR-0003-LOCAL-PRESENTATION.md) | Présentation locale | Acceptée |
 | [ADR-0004](ADR-0004-CLEAN-REBUILD.md) | Reconstruction propre | Acceptée |
+| [ADR-0005](ADR-0005-CUSTOM-INVENTORY.md) | Inventaire personnalisé plutôt que le système natif s&box | Acceptée |
 
 Quand ajouter un nouvel ADR : une décision d'architecture qui contraint durablement la conception future (ex. « le mouvement est host-authoritative ») justifie un ADR. Une préférence d'implémentation locale à un système ne le justifie pas — voir [../../.claude/rules/documentation.md](../../.claude/rules/documentation.md).

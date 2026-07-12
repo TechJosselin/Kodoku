@@ -64,6 +64,7 @@
 - **Critères de validation** : transfert d'item entre deux joueurs testé à deux instances, sans désynchronisation.
 - **Hors périmètre** : UI définitive (peut utiliser un placeholder minimal).
 - **Statut** : `En cours`. Noyau local de conteneur à grille (`InventoryContainer`, branche `feature/inventory-core`) implémenté et **validé pour son périmètre strictement local** (Tests A à O, 15/15, exécution réelle en éditeur le 2026-07-12) — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Inventory Core », pour la portée exacte de cette validation. Cette validation ne couvre que le noyau local : **composant joueur, réplication réseau, pickup, drop, transfert entre joueurs, équipement et UI restent non commencés et non validés**, y compris le critère de validation de cette étape (transfert d'item entre deux joueurs testé à deux instances).
+- **Évaluation du système natif terminée.** Décision actuelle : inventaire personnalisé Kodoku (`InventoryContainer`/`InventoryPlacement`), pas le système natif `BaseInventoryComponent`/`BaseInventoryItem` — voir [ADR-0005](../decisions/ADR-0005-CUSTOM-INVENTORY.md). La recherche native (étude + spike expérimental) reste archivée dans `docs/research/`.
 
 ## 9. Objets du monde
 

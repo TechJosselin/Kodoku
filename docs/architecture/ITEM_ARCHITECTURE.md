@@ -161,6 +161,10 @@ Aucune erreur (`Log.Error`) ni crash sur l'ensemble des sept tests.
 
 **Portée de cette validation** : `InventoryContainer` est une classe C# pure sans réseau, sans `[Sync]`, sans `GameObject` — une exécution unique en éditeur (une seule instance, pas de host/client) est suffisante pour valider son comportement déterministe, à la différence des fonctionnalités réseau (`WorldItemComponent`, `LootSpawnPointComponent` ci-dessus) qui exigent un test à deux instances réelles — voir [../../.claude/rules/multiplayer.md](../../.claude/rules/multiplayer.md). Cette validation couvre strictement ce noyau local : elle ne valide ni le networking, ni le pickup, ni le drop, ni le transfert entre joueurs, ni l'UI — tous encore non implémentés (voir « Éléments encore ouverts »).
 
+## Décision : inventaire personnalisé, pas le système natif s&box
+
+Le système natif `BaseInventoryComponent`/`BaseInventoryItem` a été évalué ([SBOX_BUILTIN_INVENTORY_EVALUATION.md](../research/SBOX_BUILTIN_INVENTORY_EVALUATION.md)) puis prototypé sous forme hybride dans un spike ([NATIVE_INVENTORY_SPIKE_RESULTS.md](../research/NATIVE_INVENTORY_SPIKE_RESULTS.md)), mais **n'est pas utilisé par l'architecture de production**. `InventoryContainer` est le noyau spatial personnalisé retenu — voir [ADR-0005](../decisions/ADR-0005-CUSTOM-INVENTORY.md) pour la décision complète et ses raisons.
+
 ## Éléments encore ouverts
 
 - Composant joueur (`PlayerInventoryComponent`), réplication réseau de l'inventaire, RPC/snapshot, pickup, drop monde, interaction, transfert entre joueurs, conteneurs imbriqués, équipement corporel, hotbar, UI, drag and drop, stack merge/split, poids maximal, persistance/sauvegarde, reconnexion : non implémentés — hors périmètre du noyau `InventoryContainer` ci-dessus.

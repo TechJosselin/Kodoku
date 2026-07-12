@@ -2,11 +2,18 @@
 
 Décisions non encore tranchées. Ne pas les résoudre arbitrairement dans le code ou la documentation — les lever explicitement quand l'information nécessaire existe (test moteur, décision de conception).
 
+## Décisions résolues
+
+- **Inventaire natif, hybride ou personnalisé ?** — **Résolue le 12 juillet 2026 : inventaire personnalisé Kodoku retenu** (`InventoryContainer`/`InventoryPlacement`, noyau local déjà validé Tests A à O). Le système natif s&box (`BaseInventoryComponent`/`BaseInventoryItem`) est conservé comme référence (principes d'autorité host, validation avant mutation, opérations atomiques) mais n'est pas adopté en production, y compris sous forme hybride malgré des résultats de spike globalement positifs (pickup/drop/transfert fiables, mais late join incomplet pour un item inactif). Voir [ADR-0005](../decisions/ADR-0005-CUSTOM-INVENTORY.md) pour la décision complète et [SBOX_BUILTIN_INVENTORY_EVALUATION.md](../research/SBOX_BUILTIN_INVENTORY_EVALUATION.md)/[NATIVE_INVENTORY_SPIKE_RESULTS.md](../research/NATIVE_INVENTORY_SPIKE_RESULTS.md) pour l'étude et le spike qui l'ont informée. Restent ouvertes, en aval de cette décision : réplication du `PlayerInventoryComponent`, snapshots et late join, pickup concurrent, drop réseau, transfert entre conteneurs, stack merge/split, inventaires imbriqués, équipement, persistance — voir « Architecture / gameplay » ci-dessous.
+
 ## Architecture / gameplay
 
 - **Stratégie exacte d'autorité du mouvement joueur** — host-authoritative strict, owner-authoritative avec réconciliation côté host, ou hybride. Laissée ouverte par [ADR-0002](../decisions/ADR-0002-HOST-AUTHORITY.md). À trancher après un premier prototype de contrôleur testé à plusieurs instances.
 - **Structure finale des scènes** — une scène unique vs. plusieurs zones chargées/déchargées, mécanisme de transition. Voir [../architecture/SCENE_ARCHITECTURE.md](../architecture/SCENE_ARCHITECTURE.md).
-- **Format complet des futures `ItemDefinition`** — champs exacts, conventions ; volontairement non recopié de l'ancien projet. Voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md).
+- **Extensions futures d'`ItemDefinition`** — une V1 existe déjà et est validée pour son périmètre (`ItemId`/`DisplayName`/`Description`/`Category`/`Tags`/`Icon`/`GridWidth`/`GridHeight`/`CanRotate`/`Weight`/`MaxStack`/`WorldModel`/`WorldPrefabOverride`, voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md)). Reste ouvert : quels champs supplémentaires un futur système d'inventaire/équipement/durabilité nécessitera (ex. emplacement d'équipement, durabilité, effets de consommation) — non décidés, à ajouter au moment où le besoin réel apparaît.
+- **Réplication du futur `PlayerInventoryComponent`** — autorité, snapshot, late join des placements d'un conteneur networké : non conçue, non implémentée. Le spike natif a isolé un enseignement transférable sur ce point (voir [NATIVE_INVENTORY_SPIKE_RESULTS.md](../research/NATIVE_INVENTORY_SPIKE_RESULTS.md)), pas une contrainte directe sur l'implémentation personnalisée.
+- **Pickup interactif** (portée, ligne de vue, concurrence entre deux joueurs sur le même item) — non conçu, non implémenté.
+- **Drop réseau, transfert entre conteneurs/joueurs, stack merge/split, inventaires imbriqués, équipement par emplacement corporel, persistance/sauvegarde de l'inventaire** — tous non implémentés, hors périmètre du noyau `InventoryContainer` actuel.
 - **Système de sauvegarde** — mécanisme et portée (état joueur seul, ou état monde complet), fréquence, format.
 - **Stratégie de transition entre zones** — dépend de la structure de scènes ci-dessus.
 - **Gestion de la reconnexion** — récupération d'état après déconnexion, ré-association à un pawn existant vs. nouveau spawn.
