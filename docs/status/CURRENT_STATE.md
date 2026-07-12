@@ -38,6 +38,16 @@ Deux bugs réels trouvés et corrigés pendant ce test :
 - `GameHud` → terminé pour sa version minimale, strictement local (pas de `[Sync]`, aucune autorité de gameplay), relié uniquement à `KodokuPlayerComponent.Local?.PlayerVitals`, mise à jour en temps réel validée par test réel.
 - `PlayerVitalsDebugComponent` (`Code/Debug/PlayerVitalsDebugComponent.cs`) → **retiré** du dépôt et de la racine de `kodoku_player.prefab` après validation de la réplication qu'il servait à tester. Les touches U/I/O/P et les boutons inspecteur associés n'existent plus.
 
+**Mise à jour du 2026-07-12 (Items, loot et Inventory Core)** : une fondation d'items complète et un premier noyau d'inventaire existent désormais, tous les deux mergés dans `main` — voir [ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md) pour le détail complet :
+
+- `ItemDefinition`/`ItemInstance` (`Code/Items/Definitions/`, `Code/Items/Instances/`) — fondation statique/runtime, validées pour leur périmètre.
+- `WorldItemComponent` (`Code/Items/World/`) — représentation monde, réplication réseau host-authoritative minimale, **validée par test réel à deux instances, Tests A à E**.
+- `LootSpawnPointComponent` (`Code/Items/Loot/`) — génération de loot host-authoritative V1 mono-item, **validée par test réel à deux instances, Tests A à G**.
+- `InventoryContainer`/`InventoryPlacement`/`InventoryOperationResult`/`InventoryFailureReason` (`Code/Items/Inventory/`) — noyau pur d'inventaire spatial à grille 2D, classe C# sans réseau ni `GameObject`, **validé par exécution réelle en éditeur, Tests A à O, 15/15** (session solo suffisante pour ce noyau non networké — voir [../../.claude/rules/multiplayer.md](../../.claude/rules/multiplayer.md)).
+- Le système natif s&box d'inventaire/armes (`Sandbox.BaseInventoryComponent`/`BaseInventoryItem`) a été évalué puis prototypé dans un spike expérimental (`spike/native-inventory-adapter`, jamais mergé) — **non adopté**, Kodoku retient l'inventaire personnalisé ci-dessus. Voir [ADR-0005](../decisions/ADR-0005-CUSTOM-INVENTORY.md) et `docs/research/`.
+
+**Reste non implémenté** : composant joueur d'inventaire réseau (`PlayerInventoryComponent`), pickup interactif, drop, transfert entre joueurs, équipement, UI d'inventaire, stack merge/split, persistance — voir [ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Éléments encore ouverts ».
+
 ## Fonctionnel ou présent
 
 - Nouveau projet s&box **Kodoku** créé (`kodoku.sbproj` : type `game`, org `local`, `MaxPlayers: 4`, `TickRate: 50`, `GameNetworkType: Multiplayer`).
@@ -85,14 +95,13 @@ La conception définitive de la caméra reste l'objectif de l'étape « Caméra 
 
 Aucune trace, même en placeholder, dans le projet actuel :
 
-- Système d'items
-- Inventaire
+- Inventaire joueur networké, pickup interactif, conteneurs du monde, équipement, consommation d'objets (le noyau `InventoryContainer` local existe et est validé, voir « Mise à jour du 2026-07-12 » ci-dessus — mais aucun composant joueur ni réseau ne l'utilise encore)
 - Interaction (logique — le GameObject `Interactables` existe mais est un placeholder vide)
 - Ennemis (logique — le GameObject `Enemies` existe mais est un placeholder vide)
-- Combat
+- Combat, armes
 - Chargement de zones / extraction (logique — `ExtractionPoints` existe mais est un placeholder vide)
 
-`Editor/` ne contient toujours que `Assembly.cs` (déclarations `global using` uniquement, aucune classe). `Code/` contient `Assembly.cs` et, depuis le 2026-07-11, `Code/Players/KodokuPlayerComponent.cs`, `Code/Players/Vitals/PlayerVitalsComponent.cs` et `Code/UI/Hud/GameHud.razor`/`.scss` (voir « Fonctionnel ou présent » ci-dessus). `Code/Debug/` n'existe plus (composant de debug temporaire retiré après validation). `Assets/scenes/` n'est plus vide (`Tests/GameplayTest.scene`), mais la scène de démarrage déclarée dans `kodoku.sbproj` (`scenes/minimal.scene`) n'existe toujours pas sur disque. `Assets/Prefabs/` n'est plus vide (`Players/kodoku_player.prefab`). `Assets/Data/`, `Assets/Materials/`, `Assets/Models/`, `Assets/Textures/` restent vides.
+`Editor/` ne contient toujours que `Assembly.cs` (déclarations `global using` uniquement, aucune classe). `Code/` contient `Assembly.cs`, `Code/Players/KodokuPlayerComponent.cs`, `Code/Players/Vitals/PlayerVitalsComponent.cs`, `Code/UI/Hud/GameHud.razor`/`.scss` et, depuis le 2026-07-12, `Code/Items/` (`Definitions/`, `Instances/`, `World/`, `Loot/`, `Inventory/` — voir « Mise à jour du 2026-07-12 » ci-dessus). `Code/Debug/InventoryCoreDebugComponent.cs` existe comme outil de debug temporaire pour valider `InventoryContainer` (jamais installé automatiquement dans une scène suivie par Git) ; les composants de debug précédents (`PlayerVitalsDebugComponent`, spawner de loot) ont été retirés après leur validation respective. `Assets/scenes/` n'est plus vide (`Tests/GameplayTest.scene`), mais la scène de démarrage déclarée dans `kodoku.sbproj` (`scenes/minimal.scene`) n'existe toujours pas sur disque. `Assets/Prefabs/` contient `Players/kodoku_player.prefab` et `Items/Consumables/Drinks/water_bottle.prefab`. `Assets/Data/` contient `Items/Consumables/Drinks/water_bottle.item` — n'est plus vide. `Assets/Materials/`, `Assets/Models/`, `Assets/Textures/` restent vides.
 
 ## Sur la sécurité technique
 

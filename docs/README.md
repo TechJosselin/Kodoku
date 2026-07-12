@@ -26,7 +26,7 @@ Décrit l'architecture **visée** pour la reconstruction — pas ce qui est déj
 
 ## Décisions (`decisions/`)
 
-Architecture Decision Records — voir [decisions/README.md](decisions/README.md) pour le fonctionnement. Décisions actuelles : [ADR-0001](decisions/ADR-0001-MULTIPLAYER-FIRST.md) (multiplayer-first), [ADR-0002](decisions/ADR-0002-HOST-AUTHORITY.md) (host authority), [ADR-0003](decisions/ADR-0003-LOCAL-PRESENTATION.md) (présentation locale), [ADR-0004](decisions/ADR-0004-CLEAN-REBUILD.md) (reconstruction propre).
+Architecture Decision Records — voir [decisions/README.md](decisions/README.md) pour le fonctionnement. Décisions actuelles : [ADR-0001](decisions/ADR-0001-MULTIPLAYER-FIRST.md) (multiplayer-first), [ADR-0002](decisions/ADR-0002-HOST-AUTHORITY.md) (host authority), [ADR-0003](decisions/ADR-0003-LOCAL-PRESENTATION.md) (présentation locale), [ADR-0004](decisions/ADR-0004-CLEAN-REBUILD.md) (reconstruction propre), [ADR-0005](decisions/ADR-0005-CUSTOM-INVENTORY.md) (inventaire personnalisé plutôt que le système natif s&box).
 
 ## État du projet (`status/`)
 
@@ -36,6 +36,16 @@ Architecture Decision Records — voir [decisions/README.md](decisions/README.md
 | [ROADMAP.md](status/ROADMAP.md) | Étapes de reconstruction, sans dates artificielles |
 | [OPEN_QUESTIONS.md](status/OPEN_QUESTIONS.md) | Décisions non encore tranchées |
 | [CHANGELOG_DOCUMENTATION.md](status/CHANGELOG_DOCUMENTATION.md) | Historique des changements de documentation |
+
+## Recherche (`research/`)
+
+Études ponctuelles — recherche historique et aide à la décision, pas une architecture active. Voir chaque document pour son statut exact et [ADR-0005](decisions/ADR-0005-CUSTOM-INVENTORY.md) pour la décision qui en a résulté.
+
+| Document | Rôle |
+|---|---|
+| [LEGACY_MULTIPLAYER_AUDIT.md](research/LEGACY_MULTIPLAYER_AUDIT.md) | Audit du socle multiplayer de `Kodoku_Legacy` |
+| [SBOX_BUILTIN_INVENTORY_EVALUATION.md](research/SBOX_BUILTIN_INVENTORY_EVALUATION.md) | Évaluation factuelle du système Inventory/Weapons natif s&box, non adopté |
+| [NATIVE_INVENTORY_SPIKE_RESULTS.md](research/NATIVE_INVENTORY_SPIKE_RESULTS.md) | Résultats du spike expérimental d'adaptateur hybride, clos sans adoption |
 
 ## Sources externes (non versionnées ici)
 
