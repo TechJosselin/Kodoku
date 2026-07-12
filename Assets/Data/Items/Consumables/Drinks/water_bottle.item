@@ -11,7 +11,7 @@
   "Weight": 0.6,
   "MaxStack": 1,
   "WorldModel": null,
-  "WorldPrefabOverride": null,
+  "WorldPrefabOverride": "Prefabs/Items/Consumables/Drinks/water_bottle.prefab",
   "__references": [],
   "__version": 0
 }
