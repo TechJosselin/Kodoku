@@ -1,6 +1,6 @@
 # Architecture des items
 
-**Statut : architecture visée, non implémentée.** Aucun système d'items n'existe dans le code actuel de Kodoku, et aucune ressource `.item` n'est présente dans `Assets/Data/` (dossier vide) — voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md). Seuls des PNG d'icônes de l'ancienne UI ont été conservés (voir [../development/ASSET_MIGRATION.md](../development/ASSET_MIGRATION.md)).
+**Statut : `ItemDefinition` (fondation statique) implémentée, non encore validée par compilation/test dans l'éditeur — voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md).** `ItemInstance`, la représentation dans le monde (`WorldItemComponent`) et l'inventaire restent une architecture visée, non implémentée. Seuls des PNG d'icônes de l'ancienne UI ont été conservés au-delà du code (voir [../development/ASSET_MIGRATION.md](../development/ASSET_MIGRATION.md)).
 
 ## Séparation conceptuelle envisagée
 
@@ -21,8 +21,24 @@
 
 Les anciennes ressources `.item` seront **recréées**, pas réutilisées — leur ancienne structure exacte (champs, conventions de nommage) ne doit pas être reprise automatiquement. L'ancien projet peut être consulté pour comprendre quelles catégories d'items existaient et quel besoin elles couvraient (ex. consommables avec effets sur des statistiques de vitals, équipement par emplacement), mais chaque champ doit être redécidé pour la nouvelle architecture, en particulier vis-à-vis de l'autorité réseau (qui a le droit de créer/détruire/modifier un `ItemInstance`). Voir [../development/LEGACY_REFERENCE_POLICY.md](../development/LEGACY_REFERENCE_POLICY.md).
 
+## `ItemDefinition` — V1 (décision validée pour son périmètre)
+
+`ItemDefinition` (`Code/Items/Definitions/ItemDefinition.cs`, namespace `Kodoku.Items`) est un `GameResource` (`[AssetType(Name = "Item Definition", Extension = "item", Category = "Kodoku")]`), un fichier `.item` par type d'objet. Aucun état runtime — voir séparation conceptuelle ci-dessus. L'inspecteur est organisé en quatre groupes (`[Group("...")]`) :
+
+- **Identity** : `ItemId` (string, stable, unique, jamais dérivé de `DisplayName` — `[Title("Item ID")]`/`[Description(...)]` pour clarifier l'intention dans l'inspecteur ; `[KeyProperty]` a été écarté après revue, cet attribut désigne la propriété d'affichage d'un élément dans une liste/collection, pas une clé primaire), `DisplayName` (string), `Description` (string, `[TextArea]`), `Category` (`ItemCategory`, enum simple — `Miscellaneous`/`Consumable`/`Medical`/`Food`/`Equipment`/`Weapon`/`Ammunition`/`Tool`/`Resource`/`Key`/`Quest`, ne détermine aucun comportement automatiquement), `Tags` (`ItemTags`, `[Flags]` — `None`/`Drink`/`Water` pour l'instant, volontairement minimal).
+- **Presentation** : `Icon` (référence typée `Texture`).
+- **Inventory** : `GridWidth`/`GridHeight` (int, clampés à un minimum de 1), `CanRotate` (bool, défaut `true` — la rotation *effective* d'un exemplaire n'appartient pas à cette définition), `Weight` (float, kilogrammes, clampé à un minimum de 0), `MaxStack` (int, clampé à un minimum de 1 ; `MaxStack = 1` signifie non empilable, pas de propriété `IsStackable` séparée).
+- **World** : `WorldModel` (référence typée `Model`), `WorldPrefabOverride` (référence typée `PrefabFile` — confirmée comme un type d'asset réel du moteur, `PrefabFile : GameResource`, mais non consommée par aucun système actuellement).
+
+Les types d'attributs (`[AssetType]`, `[Group]`, `[Title]`, `[Description]`, `[TextArea]`, ainsi que `Texture`/`Model`/`PrefabFile` comme références typées) ont été vérifiés directement contre les assemblies moteur installées localement (`Sandbox.Engine.dll`/`Sandbox.System.dll`) avant utilisation, pas supposés depuis une documentation externe.
+
+**Validation** : les minimums numériques (`GridWidth`/`GridHeight`/`MaxStack` ≥ 1, `Weight` ≥ 0) sont appliqués par clamp dans le setter de chaque propriété (même pattern que `PlayerVitalsComponent`). `ItemId`/`DisplayName` vides et l'unicité globale de `ItemId` entre toutes les ressources `.item` **ne sont pas encore validés** — aucune API moteur simple et propre identifiée pour ce cas sans construire un mécanisme dédié (ex. registre global) ; reporté à un futur système (voir Éléments encore ouverts).
+
+**Première ressource concrète** : `Assets/Data/Items/Consumables/Drinks/water_bottle.item` (`ItemId = kodoku.consumable.water_bottle`, catégorie `Consumable`, tags `Drink | Water`, grille 1×2, `MaxStack = 1` — volontairement non empilable, une future `ItemInstance` portera un état interne, ex. quantité d'eau restante, qui rendrait l'empilement ambigu). Utilise l'icône déjà migrée `Assets/ui/game/icons/items/consumables/drinks/icon_water.png` ; aucun modèle 3D n'existe encore dans le projet, `WorldModel` est laissé vide plutôt que de fabriquer un asset temporaire.
+
 ## Éléments encore ouverts
 
-- Format exact des futures ressources `.item` — voir [../status/OPEN_QUESTIONS.md](../status/OPEN_QUESTIONS.md).
-- Modèle d'autorité réseau pour la création/destruction d'`ItemInstance` (probable host-authoritative par cohérence avec ADR-0002, à confirmer au moment de la conception).
+- `ItemInstance`, `WorldItemComponent`, inventaire : non implémentés — voir ci-dessus.
+- Validation de l'unicité globale de `ItemId` et des champs obligatoires vides (`ItemId`/`DisplayName`) — reportée à un futur registre/chargeur global, pas simulée par une logique fragile au niveau d'une seule ressource.
+- Modèle d'autorité réseau pour la création/destruction d'`ItemInstance` (probable host-authoritative par cohérence avec ADR-0002, à confirmer au moment de la conception). `ItemDefinition` elle-même est une donnée statique, référencée par `ItemId`, et ne nécessite aucune réplication runtime.
 - Portée de la réplication des conteneurs (contenu d'un conteneur networké en temps réel, ou seulement son existence).

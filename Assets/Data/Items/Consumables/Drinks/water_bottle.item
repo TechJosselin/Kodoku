@@ -1,0 +1,17 @@
+{
+  "ItemId": "kodoku.consumable.water_bottle",
+  "DisplayName": "Water Bottle",
+  "Description": "A sealed bottle of drinking water.",
+  "Category": "Consumable",
+  "Tags": "Drink, Water",
+  "Icon": "ui/game/icons/items/consumables/drinks/icon_water.png",
+  "GridWidth": 1,
+  "GridHeight": 2,
+  "CanRotate": true,
+  "Weight": 0.6,
+  "MaxStack": 1,
+  "WorldModel": null,
+  "WorldPrefabOverride": null,
+  "__references": [],
+  "__version": 0
+}
