@@ -55,6 +55,7 @@
 - **Dépendances** : étape 2 (architecture définie).
 - **Critères de validation** : au moins une définition d'item chargée et instanciée, testée en réseau.
 - **Hors périmètre** : inventaire, équipement.
+- **Statut** : `En cours`. `ItemDefinition`, `ItemInstance` et `WorldItemComponent` (réplication réseau host-authoritative) validés par test réel à deux instances (Tests A à E, 2026-07-12 — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md)). `LootSpawnPointComponent` (génération de loot host-authoritative, V1 mono-item, branche `feature/loot-spawn-points`) implémenté mais non encore validé manuellement (Tests A à F en attente). `LootTableDefinition`, pickup/inventaire restent hors périmètre de cette étape.
 
 ## 8. Inventaire et équipement
 
