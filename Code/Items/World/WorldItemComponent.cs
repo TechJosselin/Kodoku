@@ -4,15 +4,18 @@ namespace Kodoku.Items;
 
 /// <summary>
 /// Représentation minimale d'un exemplaire d'item dans une scène : relie une
-/// <see cref="ItemDefinition"/> à une <see cref="ItemInstance"/> runtime pour un premier
-/// test local. Ne gère ni ramassage, ni interaction, ni inventaire — voir
-/// docs/architecture/ITEM_ARCHITECTURE.md.
+/// <see cref="ItemDefinition"/> à une <see cref="ItemInstance"/> runtime. Ne gère ni
+/// ramassage, ni interaction, ni inventaire — voir docs/architecture/ITEM_ARCHITECTURE.md.
 ///
-/// Autorité réseau : la réplication de <see cref="Instance"/> n'est pas implémentée. Sur un
-/// GameObject networké, seul le côté qui simule réellement cet objet (<see cref="IsProxy"/>
-/// == false — propriétaire, ou host pour un objet non possédé, selon la sémantique confirmée
-/// de <c>NetworkAccessor.IsProxy</c>) crée une instance locale ; un proxy reste volontairement
-/// non initialisé plutôt que de générer un <see cref="ItemInstance.InstanceId"/> divergent.
+/// Autorité réseau : le host est l'unique créateur d'une nouvelle <see cref="ItemInstance"/>
+/// sur un GameObject networké (<see cref="TryInitializeAuthoritativeNew"/>), cohérent avec
+/// ADR-0002. L'autorité est déterminée via <see cref="Sandbox.Networking.IsHost"/> — pas via
+/// <c>IsProxy</c>, dont le timing juste après un spawn est un risque documenté (voir
+/// MULTIPLAYER_ARCHITECTURE.md, section Ownership, et le vécu de l'ancien projet). L'état
+/// minimal (<see cref="NetworkInstanceId"/>/<see cref="NetworkItemId"/>/
+/// <see cref="NetworkQuantity"/>) est répliqué host→clients ; un client non-host ne crée
+/// jamais d'<see cref="ItemInstance"/> lui-même, il restaure celle du host dès que l'état
+/// synchronisé est complet (<see cref="TryRestoreFromNetworkState"/>).
 /// </summary>
 public sealed class WorldItemComponent : Component
 {
@@ -47,21 +50,77 @@ public sealed class WorldItemComponent : Component
 	[Property]
 	public int RuntimeQuantity => Instance?.Quantity ?? 0;
 
+	/// <summary>
+	/// État réseau autoritaire, renseigné uniquement par le host (<see cref="TryInitializeAuthoritativeNew"/>).
+	/// <see cref="Guid"/> n'a pas de précédent confirmé comme type supporté par <c>[Sync]</c>
+	/// dans ce projet ni dans le code moteur inspecté — représentation en chaîne canonique
+	/// (<c>Guid.ToString()</c>), reconvertie avec validation côté réception plutôt que de
+	/// supposer un support natif non vérifié.
+	/// </summary>
+	[Sync( SyncFlags.FromHost )]
+	[Change( nameof( OnNetworkInstanceIdChanged ) )]
+	public string NetworkInstanceId { get; set; } = "";
+
+	[Sync( SyncFlags.FromHost )]
+	[Change( nameof( OnNetworkItemIdChanged ) )]
+	public string NetworkItemId { get; set; } = "";
+
+	[Sync( SyncFlags.FromHost )]
+	[Change( nameof( OnNetworkQuantityChanged ) )]
+	public int NetworkQuantity { get; set; } = 0;
+
 	protected override void OnStart()
 	{
-		// GameObject.Network.Active == false : objet purement local, création directe sûre.
-		// Networké + proxy : l'autorité réelle (propriétaire ou host) n'a pas encore répliqué
-		// d'instance vers nous — ne pas en inventer une localement (voir résumé de classe).
-		if ( GameObject.Network.Active && IsProxy )
+		// Un appelant externe (spawn programmatique) peut déjà avoir initialisé ce composant
+		// avant que OnStart ne s'exécute (différé "avant le premier Update" — voir
+		// docs/official/sbox/components/component-lifecycle.md) : rien à refaire.
+		if ( IsInitialized )
+			return;
+
+		if ( GameObject.Network.Active && !Networking.IsHost )
 		{
-			Log.Warning( $"[WorldItem] '{GameObject.Name}' is a network proxy — no replicated ItemInstance exists yet (replication not implemented), leaving uninitialized." );
+			// Attente normale d'un proxy réseau — pas une erreur, aucun warning par item
+			// (voir docs/architecture/ITEM_ARCHITECTURE.md).
+			TryRestoreFromNetworkState();
 			return;
 		}
 
-		TryInitializeNew();
+		TryInitializeAuthoritativeNew();
 	}
 
-	/// <summary>Crée une nouvelle <see cref="ItemInstance"/> à partir de <see cref="Definition"/>/<see cref="InitialQuantity"/>.</summary>
+	/// <summary>
+	/// Chemin de création unique et idempotent. Sur un GameObject non networké, crée
+	/// simplement une <see cref="ItemInstance"/> locale. Sur un GameObject networké, seul le
+	/// host peut l'appeler avec effet : il crée l'instance puis renseigne l'état réseau
+	/// autoritaire (<see cref="NetworkInstanceId"/>/<see cref="NetworkItemId"/>/
+	/// <see cref="NetworkQuantity"/>) pour que les autres clients restaurent la même instance.
+	/// </summary>
+	public bool TryInitializeAuthoritativeNew()
+	{
+		if ( GameObject.Network.Active && !Networking.IsHost )
+		{
+			Log.Warning( $"[WorldItem] '{GameObject.Name}': TryInitializeAuthoritativeNew() called on a non-host client — ignored." );
+			return false;
+		}
+
+		if ( !TryInitializeNew() )
+			return false;
+
+		if ( GameObject.Network.Active )
+		{
+			NetworkInstanceId = Instance.InstanceId.ToString();
+			NetworkItemId = Instance.Definition.ItemId;
+			NetworkQuantity = Instance.Quantity;
+		}
+		else
+		{
+			Log.Info( $"[WorldItem][Initialized]\nItemId={Instance.Definition.ItemId}\nInstanceId={Instance.InstanceId}\nQuantity={Instance.Quantity}" );
+		}
+
+		return true;
+	}
+
+	/// <summary>Crée une nouvelle <see cref="ItemInstance"/> à partir de <see cref="Definition"/>/<see cref="InitialQuantity"/>, sans toucher l'état réseau.</summary>
 	public bool TryInitializeNew()
 	{
 		if ( IsInitialized )
@@ -89,14 +148,13 @@ public sealed class WorldItemComponent : Component
 		}
 
 		Instance = ItemInstance.CreateNew( Definition, InitialQuantity );
-		LogInitialized();
 		return true;
 	}
 
 	/// <summary>
-	/// Initialise ce composant depuis une <see cref="ItemInstance"/> déjà existante (future
-	/// restauration/réplication/spawn depuis un inventaire — non implémenté ici, seul ce
-	/// point d'entrée est préparé).
+	/// Initialise ce composant depuis une <see cref="ItemInstance"/> déjà existante (restauration
+	/// réseau via <see cref="TryRestoreFromNetworkState"/>, et future sauvegarde/spawn depuis un
+	/// inventaire — non implémenté ici, seul ce point d'entrée est préparé).
 	/// </summary>
 	public bool TryInitializeFromInstance( ItemInstance instance )
 	{
@@ -126,12 +184,58 @@ public sealed class WorldItemComponent : Component
 
 		Definition = instance.Definition;
 		Instance = instance;
-		LogInitialized();
 		return true;
 	}
 
-	void LogInitialized()
+	/// <summary>
+	/// Tentative idempotente de restauration depuis l'état réseau reçu. Ne crée jamais
+	/// d'<see cref="ItemInstance.InstanceId"/> : n'agit que si l'état est complet, valide, et
+	/// cohérent avec <see cref="Definition"/>. Appelée depuis <see cref="OnStart"/> (au cas où
+	/// l'état serait déjà arrivé) et depuis chaque callback <c>[Change]</c> des propriétés
+	/// réseau (late arrival — voir docs/architecture/ITEM_ARCHITECTURE.md).
+	/// </summary>
+	void TryRestoreFromNetworkState()
 	{
-		Log.Info( $"[WorldItem] Initialized\nGameObject: {GameObject.Name}\nItemId: {Instance.Definition.ItemId}\nInstanceId: {Instance.InstanceId}\nQuantity: {Instance.Quantity}\nMaxStack: {Instance.Definition.MaxStack}" );
+		if ( IsInitialized )
+			return;
+
+		if ( string.IsNullOrEmpty( NetworkInstanceId ) || string.IsNullOrEmpty( NetworkItemId ) || NetworkQuantity <= 0 )
+			return; // état pas encore complètement arrivé — pas une erreur, pas de log.
+
+		if ( !Guid.TryParse( NetworkInstanceId, out var instanceId ) || instanceId == Guid.Empty )
+		{
+			Log.Error( $"[WorldItem][Joiner][RestoreFailed] '{GameObject.Name}': NetworkInstanceId '{NetworkInstanceId}' is not a valid Guid." );
+			return;
+		}
+
+		if ( Definition is null )
+		{
+			Log.Error( $"[WorldItem][Joiner][RestoreFailed] '{GameObject.Name}': no local Definition configured to validate against NetworkItemId '{NetworkItemId}'." );
+			return;
+		}
+
+		if ( Definition.ItemId != NetworkItemId )
+		{
+			Log.Error( $"[WorldItem][Joiner][RestoreFailed] '{GameObject.Name}': Definition.ItemId ('{Definition.ItemId}') does not match NetworkItemId ('{NetworkItemId}') — refusing to restore." );
+			return;
+		}
+
+		ItemInstance restored;
+		try
+		{
+			restored = ItemInstance.Restore( instanceId, Definition, NetworkQuantity );
+		}
+		catch ( ArgumentException e )
+		{
+			Log.Error( $"[WorldItem][Joiner][RestoreFailed] '{GameObject.Name}': {e.Message}" );
+			return;
+		}
+
+		if ( !TryInitializeFromInstance( restored ) )
+			return;
 	}
+
+	void OnNetworkInstanceIdChanged( string oldValue, string newValue ) => TryRestoreFromNetworkState();
+	void OnNetworkItemIdChanged( string oldValue, string newValue ) => TryRestoreFromNetworkState();
+	void OnNetworkQuantityChanged( int oldValue, int newValue ) => TryRestoreFromNetworkState();
 }
