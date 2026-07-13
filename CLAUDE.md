@@ -35,7 +35,7 @@ Le fonctionnement en solo ne suffit **jamais** à valider une fonctionnalité de
 - [docs/decisions/](docs/decisions/) — décisions d'architecture (ADR)
 - [docs/status/](docs/status/) — état courant, roadmap, questions ouvertes
 
-Règles détaillées : [.claude/rules/](.claude/rules/) (sécurité, multiplayer, Git, documentation, C#).
+Règles détaillées : [.claude/rules/](.claude/rules/) (sécurité, multiplayer, Git, documentation, C#, [fichiers générés S&box](.claude/rules/generated-files.md)).
 
 ## Chemins locaux
 

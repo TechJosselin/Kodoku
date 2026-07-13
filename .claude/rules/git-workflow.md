@@ -11,6 +11,6 @@
 - Ne jamais effectuer de `commit`, `push`, `merge`, `rebase` ou changement de branche sans demande explicite de l'utilisateur pour cette action précise.
 - Vérifier `git status` avant toute intervention, pour connaître l'état de départ réel du dépôt (changements en cours, fichiers non suivis).
 - Afficher les fichiers modifiés après le travail, pour que l'utilisateur puisse valider l'étendue réelle du changement avant tout commit.
-- Ne jamais inclure de fichiers générés (`obj/`, `bin/`, `.csproj`/`.sln`/`.slnx` générés par l'éditeur, `.sbox/`) — déjà couverts par `.gitignore`, ne pas les ajouter avec `-f`.
+- Ne jamais inclure de fichiers générés (`obj/`, `bin/`, `.csproj`/`.sln`/`.slnx` générés par l'éditeur, `.sbox/`, fichiers compilés `*_c`, `.scene_d`) — déjà couverts par `.gitignore`, ne pas les ajouter avec `-f`. Règle détaillée et procédure de vérification avant commit : [generated-files.md](generated-files.md).
 - Un commit doit avoir un périmètre cohérent : ne pas mélanger une fonctionnalité de gameplay, un changement de documentation et une modification de configuration dans le même commit sans raison.
 - Les modifications réseau importantes (autorité, ownership, `[Sync]`, RPC) doivent être isolées dans des commits/branches identifiables et testables indépendamment — voir [multiplayer.md](multiplayer.md) et [../../docs/development/TESTING_MULTIPLAYER.md](../../docs/development/TESTING_MULTIPLAYER.md).

@@ -11,12 +11,14 @@ bin
 Properties/*
 code/obj/*
 code/Properties/*
+editor/Properties/*
 
 # Auto-generated asset related files
 .sbox/*
 *.generated.*
 *.*_c
 !*.shader_c
+*.scene_d
 *.los
 *.vpk
 *launchSettings.json
