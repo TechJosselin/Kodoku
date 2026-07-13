@@ -747,7 +747,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "LootSpawnPoint_WaterBottle_A",
-      "Position": "210,0,0",
+      "Position": "210,0,28.19557",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
@@ -873,7 +873,7 @@
     "GameObjectSystems": {
       "Sandbox.Clutter.ClutterGridSystem": {
         "Storage": {
-          "$blob": "825aae40-ccbd-4c42-9d6e-51b553ea1a11"
+          "$blob": "b048ae6d-9c0c-43d0-805b-39c4f48b34cd"
         }
       },
       "Sandbox.SelectionSetsSystem": {

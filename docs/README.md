@@ -50,3 +50,5 @@ Architecture Decision Records — voir [decisions/README.md](decisions/README.md
 ## Sources externes (non versionnées ici)
 
 Le vault Obsidian (recherche s&box) et `Kodoku_Legacy` (archive) sont des ressources externes à ce dépôt — leurs chemins locaux sont dans `CLAUDE.local.md`, pas ici.
+
+Documentation officielle s&box : [github.com/Facepunch/sbox-docs](https://github.com/Facepunch/sbox-docs) — référence pour toute question sur l'API ou le comportement du moteur non couverte par la documentation interne ci-dessus.

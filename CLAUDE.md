@@ -10,7 +10,7 @@ L'ancien projet est conservé séparément sous le nom **Kodoku_Legacy**, en lec
 
 ## Compilation et tests
 
-Il n'y a pas de commande CLI de build/lint/test autonome pour le code du jeu : `Code/kodoku.csproj` référence les DLL du moteur via des chemins relatifs vers l'installation Steam locale de s&box (`../../../../SteamLibrary/steamapps/common/sbox/...`), propres à la machine — un `dotnet build` direct n'est pas fiable. La compilation passe uniquement par l'éditeur s&box (hotload automatique à la sauvegarde d'un fichier) : aucun outil ne permet de vérifier une compilation depuis une session Claude Code, la confirmation se fait dans l'éditeur.
+Il n'y a pas de commande CLI de build/lint/test autonome pour le code du jeu : `Code/kodoku_test.csproj` référence les DLL du moteur via des chemins relatifs vers l'installation Steam locale de s&box (`../../../../SteamLibrary/steamapps/common/sbox/...`), propres à la machine — un `dotnet build` direct n'est pas fiable. La compilation passe uniquement par l'éditeur s&box (hotload automatique à la sauvegarde d'un fichier) : aucun outil ne permet de vérifier une compilation depuis une session Claude Code, la confirmation se fait dans l'éditeur.
 
 Aucune suite de tests automatisés n'existe pour le code du jeu. Toute fonctionnalité réseau se valide avec **au moins deux instances** (host + client), jamais par un test solo ni par relecture de code — voir [docs/development/TESTING_MULTIPLAYER.md](docs/development/TESTING_MULTIPLAYER.md).
 
