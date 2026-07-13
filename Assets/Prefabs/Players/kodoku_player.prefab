@@ -45,6 +45,23 @@
         "OnComponentUpdate": null
       },
       {
+        "__type": "Kodoku.Player.Inventory.PlayerInventoryComponent",
+        "__guid": "1fa8d000-080e-4cce-9d73-73c867ee2ebd",
+        "__enabled": true,
+        "Flags": 0,
+        "Contents": "",
+        "Count": 0,
+        "CurrentWeight": 0,
+        "Height": 6,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Width": 6
+      },
+      {
         "__type": "Sandbox.PlayerController",
         "__guid": "e153d886-b4f6-44b5-b4d2-553f9df25c0c",
         "__enabled": true,

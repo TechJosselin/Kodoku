@@ -28,6 +28,31 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 
 	public PlayerVitalsComponent PlayerVitals { get; private set; }
 
+	/// <summary>
+	/// Résout le pawn Kodoku possédé par une connexion réseau donnée — mécanisme officiel pour
+	/// identifier, côté host, l'appelant d'une RPC via <see cref="Sandbox.Rpc.Caller"/>
+	/// (comparé à <c>GameObject.Network.Owner</c> — <c>OwnerConnection</c> existe encore dans la
+	/// documentation officielle en ligne consultée mais est marqué obsolète par le build du moteur
+	/// installé localement, confirmé par un <c>dotnet build</c> réel, warning CS0618 : « Moved to
+	/// Owner »). Ne jamais utiliser <see cref="Local"/> pour cela : <see cref="Local"/> ne désigne
+	/// que le pawn local à CETTE instance, jamais un pawn distant vu depuis le host. Point d'entrée
+	/// unique pour ce besoin — éviter de dupliquer cette recherche dans chaque futur système qui
+	/// doit résoudre « quel pawn a fait cette demande ? ».
+	/// </summary>
+	public static KodokuPlayerComponent FindByConnection( Scene scene, Connection connection )
+	{
+		if ( scene is null || connection is null )
+			return null;
+
+		foreach ( var candidate in scene.GetAllComponents<KodokuPlayerComponent>() )
+		{
+			if ( candidate.GameObject.Network.Owner == connection )
+				return candidate;
+		}
+
+		return null;
+	}
+
 	protected override void OnStart()
 	{
 		// Résolu ici plutôt qu'en OnAwake : OnAwake d'un composant peut s'exécuter avant que

@@ -721,6 +721,222 @@
           "OwnerTransfer": 1,
           "Components": [],
           "Children": []
+        },
+        {
+          "__guid": "01da868c-39b1-40a1-b6c2-1a0127020644",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "LootSpawnPoint_WaterBottle_A",
+          "Position": "210,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Kodoku.Items.LootSpawnPointComponent",
+              "__guid": "fc705685-63bb-41cc-8626-d147a207163b",
+              "__enabled": true,
+              "Flags": 0,
+              "HasEvaluated": false,
+              "HasSpawned": false,
+              "Item": "data/items/consumables/drinks/water_bottle.item",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Quantity": 1,
+              "SpawnChance": 1
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "539cf200-760e-45bd-82bf-01ebca854551",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "LootSpawnPoint_WaterBottle_B",
+          "Position": "120,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Kodoku.Items.LootSpawnPointComponent",
+              "__guid": "4833edb4-b107-4398-86b0-8cdeb346abb8",
+              "__enabled": true,
+              "Flags": 0,
+              "HasEvaluated": false,
+              "HasSpawned": false,
+              "Item": "data/items/consumables/drinks/water_bottle.item",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Quantity": 1,
+              "SpawnChance": 1
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "6ed45680-0106-46e6-a91a-b427370f615d",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "LootSpawnPoint_WaterBottle_C",
+          "Position": "400,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Kodoku.Items.LootSpawnPointComponent",
+              "__guid": "d5b134f1-009d-4e73-9dc9-68d19b3daab2",
+              "__enabled": true,
+              "Flags": 0,
+              "HasEvaluated": false,
+              "HasSpawned": false,
+              "Item": "data/items/consumables/drinks/water_bottle.item",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Quantity": 1,
+              "SpawnChance": 1
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "5f9f857b-4123-4ee9-88d1-1ee377b9da26",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "LootSpawnPoint_WaterBottle_D",
+          "Position": "400,-80,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Kodoku.Items.LootSpawnPointComponent",
+              "__guid": "9800e744-4cb1-48c6-b49d-72eead758ca5",
+              "__enabled": true,
+              "Flags": 0,
+              "HasEvaluated": false,
+              "HasSpawned": false,
+              "Item": "data/items/consumables/drinks/water_bottle.item",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Quantity": 1,
+              "SpawnChance": 1
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "d9f5e211-5cb4-456c-9c17-c50a8d07c139",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "LootSpawnPoint_WaterBottle_E",
+          "Position": "120,-80,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Kodoku.Items.LootSpawnPointComponent",
+              "__guid": "0f9b8b87-69ee-4a4e-bd35-69c750ab1b2a",
+              "__enabled": true,
+              "Flags": 0,
+              "HasEvaluated": false,
+              "HasSpawned": false,
+              "Item": "data/items/consumables/drinks/water_bottle.item",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Quantity": 1,
+              "SpawnChance": 1
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "836d663b-8f16-44b7-b99c-b2922177c81c",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "LootSpawnPoint_WaterBottle_F",
+          "Position": "210,-80,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Kodoku.Items.LootSpawnPointComponent",
+              "__guid": "33fbb478-c41e-489c-9391-2a3ea46b8492",
+              "__enabled": true,
+              "Flags": 0,
+              "HasEvaluated": false,
+              "HasSpawned": false,
+              "Item": "data/items/consumables/drinks/water_bottle.item",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Quantity": 1,
+              "SpawnChance": 1
+            }
+          ],
+          "Children": []
         }
       ]
     },
@@ -740,114 +956,6 @@
       "NetworkTransmit": true,
       "OwnerTransfer": 1,
       "Components": [],
-      "Children": []
-    },
-    {
-      "__guid": "01da868c-39b1-40a1-b6c2-1a0127020644",
-      "__version": 2,
-      "Flags": 0,
-      "Name": "LootSpawnPoint_WaterBottle_A",
-      "Position": "210,0,28.19557",
-      "Rotation": "0,0,0,1",
-      "Scale": "1,1,1",
-      "Tags": "",
-      "Enabled": true,
-      "NetworkMode": 2,
-      "NetworkFlags": 0,
-      "NetworkOrphaned": 0,
-      "NetworkTransmit": true,
-      "OwnerTransfer": 1,
-      "Components": [
-        {
-          "__type": "Kodoku.Items.LootSpawnPointComponent",
-          "__guid": "fc705685-63bb-41cc-8626-d147a207163b",
-          "__enabled": true,
-          "Flags": 0,
-          "HasEvaluated": false,
-          "HasSpawned": false,
-          "Item": "data/items/consumables/drinks/water_bottle.item",
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "Quantity": 1,
-          "SpawnChance": 1
-        }
-      ],
-      "Children": []
-    },
-    {
-      "__guid": "539cf200-760e-45bd-82bf-01ebca854551",
-      "__version": 2,
-      "Flags": 0,
-      "Name": "LootSpawnPoint_WaterBottle_B",
-      "Position": "120,0,0",
-      "Rotation": "0,0,0,1",
-      "Scale": "1,1,1",
-      "Tags": "",
-      "Enabled": true,
-      "NetworkMode": 2,
-      "NetworkFlags": 0,
-      "NetworkOrphaned": 0,
-      "NetworkTransmit": true,
-      "OwnerTransfer": 1,
-      "Components": [
-        {
-          "__type": "Kodoku.Items.LootSpawnPointComponent",
-          "__guid": "4833edb4-b107-4398-86b0-8cdeb346abb8",
-          "__enabled": true,
-          "Flags": 0,
-          "HasEvaluated": false,
-          "HasSpawned": false,
-          "Item": "data/items/consumables/drinks/water_bottle.item",
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "Quantity": 1,
-          "SpawnChance": 1
-        }
-      ],
-      "Children": []
-    },
-    {
-      "__guid": "6ed45680-0106-46e6-a91a-b427370f615d",
-      "__version": 2,
-      "Flags": 0,
-      "Name": "LootSpawnPoint_WaterBottle_C",
-      "Position": "404.371216,0,0",
-      "Rotation": "0,0,0,1",
-      "Scale": "1,1,1",
-      "Tags": "",
-      "Enabled": true,
-      "NetworkMode": 2,
-      "NetworkFlags": 0,
-      "NetworkOrphaned": 0,
-      "NetworkTransmit": true,
-      "OwnerTransfer": 1,
-      "Components": [
-        {
-          "__type": "Kodoku.Items.LootSpawnPointComponent",
-          "__guid": "d5b134f1-009d-4e73-9dc9-68d19b3daab2",
-          "__enabled": true,
-          "Flags": 0,
-          "HasEvaluated": false,
-          "HasSpawned": false,
-          "Item": "data/items/consumables/drinks/water_bottle.item",
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "Quantity": 1,
-          "SpawnChance": 0.5
-        }
-      ],
       "Children": []
     }
   ],
@@ -873,7 +981,7 @@
     "GameObjectSystems": {
       "Sandbox.Clutter.ClutterGridSystem": {
         "Storage": {
-          "$blob": "b048ae6d-9c0c-43d0-805b-39c4f48b34cd"
+          "$blob": "828a9a65-2ea3-4692-959c-8657932246eb"
         }
       },
       "Sandbox.SelectionSetsSystem": {

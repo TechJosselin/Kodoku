@@ -109,6 +109,13 @@
         "Flags": 0,
         "Definition": "data/items/consumables/drinks/water_bottle.item",
         "InitialQuantity": 1
+      },
+      {
+        "__type": "Kodoku.Items.Interaction.WorldItemPickupComponent",
+        "__guid": "caa337fa-9dc7-4483-a449-aa3915c403fd",
+        "__enabled": true,
+        "Flags": 0,
+        "MaxPickupDistance": 150
       }
     ],
     "Children": [],

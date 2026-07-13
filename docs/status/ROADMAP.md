@@ -40,7 +40,7 @@
 - **Dépendances** : étape 4.
 - **Critères de validation** : testé à deux instances — chaque client garde sa propre vue, pas de vol/gel de caméra.
 - **Hors périmètre** : HUD de gameplay, inputs de gameplay au-delà du regard/déplacement de base.
-- **Statut** : `Prototype stock uniquement`. La caméra de `GameplayTest.scene` (`_Local/Main Camera`) est actuellement pilotée par le `Sandbox.PlayerController` stock du prefab joueur (`UseCameraControls: true`) via le mécanisme natif `IsMainCamera` du moteur — aucune architecture locale Kodoku dédiée (composant caméra local explicite) n'est encore implémentée. Voir la section « Caméra — point de vigilance » de [CURRENT_STATE.md](CURRENT_STATE.md) pour les risques à vérifier avant de considérer cette étape avancée.
+- **Statut** : `Stock, testé à deux instances pour le scénario de base — aucune architecture locale dédiée`. La caméra de `GameplayTest.scene` (`_Local/Main Camera`) est pilotée par le `Sandbox.PlayerController` stock du prefab joueur (`UseCameraControls: true`) via le mécanisme natif `IsMainCamera` du moteur — aucune architecture locale Kodoku dédiée (composant caméra local explicite) n'est implémentée. **Testé réellement à deux instances le 2026-07-13** (connexion, déplacement/rotation simultanés, déconnexion, reconnexion) : aucun vol ni gel de caméra reproduit — voir la section caméra de [CURRENT_STATE.md](CURRENT_STATE.md) pour le détail et la réserve méthodologique (scénarios à plus de deux joueurs ou avec changement de pawn non couverts). Décision : la caméra stock est conservée telle quelle, pas de composant supplémentaire créé à ce stade.
 
 ## 6. Première interaction complète
 
@@ -48,6 +48,7 @@
 - **Dépendances** : étape 4.
 - **Critères de validation** : testé à deux instances, y compris interaction simultanée par deux joueurs.
 - **Hors périmètre** : items réels (peut utiliser un placeholder).
+- **Statut** : `Fait pour son périmètre`. Le cycle interaction → RPC host → validation → mutation est implémenté directement avec un item réel (`WorldItemPickupComponent`, voir étape 9) — le scanner de détection est le système `Component.IPressable` stock du `Sandbox.PlayerController` déjà présent sur `kodoku_player.prefab`, pas un composant Kodoku dédié (décision documentée dans [ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md)). **Validé par test réel à plusieurs instances le 2026-07-13**, y compris interaction par plusieurs joueurs successifs — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md). Un test de concurrence déterministe (deux transactions strictement simultanées) reste à construire si jugé nécessaire au-delà des scénarios déjà validés.
 
 ## 7. Nouveau système d'items
 
@@ -63,7 +64,7 @@
 - **Dépendances** : étapes 6, 7.
 - **Critères de validation** : transfert d'item entre deux joueurs testé à deux instances, sans désynchronisation.
 - **Hors périmètre** : UI définitive (peut utiliser un placeholder minimal).
-- **Statut** : `En cours`. Noyau local de conteneur à grille (`InventoryContainer`, branche `feature/inventory-core`) implémenté et **validé pour son périmètre strictement local** (Tests A à O, 15/15, exécution réelle en éditeur le 2026-07-12) — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Inventory Core », pour la portée exacte de cette validation. Cette validation ne couvre que le noyau local : **composant joueur, réplication réseau, pickup, drop, transfert entre joueurs, équipement et UI restent non commencés et non validés**, y compris le critère de validation de cette étape (transfert d'item entre deux joueurs testé à deux instances).
+- **Statut** : `En cours`. Noyau local de conteneur à grille (`InventoryContainer`, branche `feature/inventory-core`) implémenté et **validé pour son périmètre strictement local** (Tests A à O, 15/15, exécution réelle en éditeur le 2026-07-12) — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Inventory Core », pour la portée exacte de cette validation. Depuis le 2026-07-13, un composant joueur (`PlayerInventoryComponent`) et un pickup host-authoritative (`WorldItemPickupComponent`) existent et sont **validés par test réel à plusieurs instances** (pickup, bonne attribution d'inventaire, inventaire plein) — voir « Interaction et pickup — V1 » dans [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md). Restent non commencés : réplication réseau du contenu vers les clients, drop, transfert entre joueurs, équipement, UI — le critère de validation formel de cette étape (transfert d'item **entre deux joueurs**) reste donc non couvert, seul le pickup individuel par chacun l'est.
 - **Évaluation du système natif terminée.** Décision actuelle : inventaire personnalisé Kodoku (`InventoryContainer`/`InventoryPlacement`), pas le système natif `BaseInventoryComponent`/`BaseInventoryItem` — voir [ADR-0005](../decisions/ADR-0005-CUSTOM-INVENTORY.md). La recherche native (étude + spike expérimental) reste archivée dans `docs/research/`.
 
 ## 9. Objets du monde
@@ -72,6 +73,7 @@
 - **Dépendances** : étape 8.
 - **Critères de validation** : ramassage/dépôt testé à deux instances, pas de duplication d'objet.
 - **Hors périmètre** : génération procédurale de contenu.
+- **Statut** : `En cours`. Ramassage implémenté et **validé par test réel à plusieurs instances le 2026-07-13** (`WorldItemPickupComponent`, transaction atomique host-authoritative : réservation → validation → ajout en inventaire → destruction réseau de l'objet-monde seulement après confirmation ; pas de duplication observée) — voir [../architecture/ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Interaction et pickup — V1 ». Dépôt (drop) non implémenté — le critère de validation de cette étape (« ramassage/dépôt ») n'est donc couvert que pour sa moitié ramassage.
 
 ## 10. IA et combat
 

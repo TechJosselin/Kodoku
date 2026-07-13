@@ -48,6 +48,10 @@ Deux bugs réels trouvés et corrigés pendant ce test :
 
 **Reste non implémenté** : composant joueur d'inventaire réseau (`PlayerInventoryComponent`), pickup interactif, drop, transfert entre joueurs, équipement, UI d'inventaire, stack merge/split, persistance — voir [ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Éléments encore ouverts ».
 
+**Mise à jour du 2026-07-13 (Interaction et pickup — implémenté puis validé)** : `PlayerInventoryComponent` (`Code/Players/Inventory/`), `WorldItemPickupComponent` (`Code/Items/Interaction/`, avec `PickupResult`/`PickupFailureReason`), et `KodokuPlayerComponent.FindByConnection(...)` ont été implémentés puis **validés par test réel host + jusqu'à deux clients successifs, huit scénarios** (pickup host, pickup client avec bonne attribution d'inventaire, destruction répliquée des deux côtés, hors de portée, inventaire plein, late join avec pickup réel par le joiner, déconnexion avec item en inventaire) — voir [ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md), section « Interaction et pickup — V1 », pour le détail complet et les logs. Aucune exception applicative, aucune duplication sur l'ensemble des sessions. Le scanner d'interaction n'a volontairement pas été réécrit : le `Sandbox.PlayerController` déjà présent sur `kodoku_player.prefab` porte un système de détection stock (`Component.IPressable`) confirmé par lecture directe du code source du moteur, jamais exécuté pour un proxy. Un test de concurrence déterministe (deux transactions simultanées sur la même cible, sans dépendre du contrôle de deux fenêtres à la fois) reste conçu mais non construit — voir « Éléments encore ouverts » de `ITEM_ARCHITECTURE.md`.
+
+**Mise à jour du 2026-07-13 (correction — compilation)** : la mise à jour du 2026-07-11 ci-dessus affirmait qu'« aucun outil de vérification de compilation... n'est plus disponible depuis une session Claude Code ». **Cette affirmation était incorrecte** — elle décrivait un état réel à l'époque (Claude Bridge venait d'être désinstallé) mais n'avait jamais été retestée avec l'outil générique `dotnet build`. Vérifié ce jour : `dotnet build Code/kodoku_test.csproj` fonctionne réellement sur cette machine (les DLL du moteur référencées par chemin relatif existent bien localement) et a permis de détecter deux problèmes réels pendant l'implémentation du pickup (un symbole d'API obsolète, `GameObject.Network.OwnerConnection` → `Owner` ; un avertissement de documentation XML) avant toute vérification en éditeur. Voir [CLAUDE.md](../../CLAUDE.md#compilation-et-tests) pour la portée exacte de ce que cette commande valide et ne valide pas (elle ne remplace pas l'éditeur pour le chargement de scène/prefab, le hotload, le runtime, le réseau, le visuel).
+
 ## Fonctionnel ou présent
 
 - Nouveau projet s&box **Kodoku** créé (`kodoku.sbproj` : type `game`, org `scrz`, ident `kodoku_test`, `MaxPlayers: 4`, `TickRate: 50`, `GameNetworkType: Multiplayer`).
@@ -77,26 +81,44 @@ Ce qui suit **n'a pas encore** été vérifié par un test réel — au-delà de
 - logique de spawn personnalisée (`PlayerSpawner` est un placeholder vide) ;
 - logique de session (`GameSession` est un placeholder vide) ;
 - sauvegarde (`SaveManager` est un placeholder vide) ;
-- règles de scène (`SceneRules` est un placeholder vide).
+- règles de scène (`SceneRules` est un placeholder vide) ;
+- test de concurrence déterministe du pickup (deux transactions distinctes sur la même cible, outil de debug non encore créé) — voir [ITEM_ARCHITECTURE.md](../architecture/ITEM_ARCHITECTURE.md).
 
-## Caméra — point de vigilance
+## Caméra — testée à deux instances le 2026-07-13, aucun problème reproduit
 
-La caméra est actuellement pilotée par le `Sandbox.PlayerController` **stock**, avec `UseCameraControls: true` : c'est ce composant, non une architecture Kodoku dédiée, qui prend la caméra principale de la scène (`_Local/Main Camera`, `IsMainCamera: true`) via le mécanisme natif du moteur. Cette solution est acceptable comme **prototype minimal uniquement**.
+La caméra est pilotée par le `Sandbox.PlayerController` **stock**, avec `UseCameraControls: true` : c'est ce composant, non une architecture Kodoku dédiée, qui prend la caméra principale de la scène (`_Local/Main Camera`, `IsMainCamera: true`) via le mécanisme natif du moteur. Point structurel à noter : `kodoku_player.prefab` **ne porte aucun `CameraComponent`** (contrairement à l'ancien projet, dont le pawn portait un `CameraComponent` enfant désactivé) — le mécanisme exact de vol de caméra documenté sur l'ancien projet (un `[Property]` `IsMainCamera` d'un `CameraComponent` du pawn qui se répliquait) ne peut donc pas se reproduire à l'identique ici.
 
-Avant de considérer l'étape « Caméra et présentation locale » comme avancée, elle devra être testée explicitement avec deux instances pour vérifier :
+**Test réel effectué le 2026-07-13, host + client** (mission dédiée « Validation du socle multiplayer avant le pickup ») :
 
-- qu'un client ne prend jamais la caméra de l'autre joueur ;
-- que chaque client contrôle uniquement sa propre présentation ;
-- que le timing d'ownership et `IsProxy` (risque documenté dans [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md)) ne provoque pas de mauvaise sélection de caméra juste après le spawn.
+- host seul (déplacement, rotation) avant connexion du client : OK ;
+- connexion du client : caméra host inchangée, caméra client correcte, chaque instance voit le pawn de l'autre ;
+- mouvements simultanés des deux joueurs : chaque joueur contrôle uniquement sa propre caméra, aucun gel, aucun vol de caméra ;
+- déconnexion du client : caméra host toujours fonctionnelle, aucune erreur dans les logs ;
+- reconnexion : caméra client correcte immédiatement, caméra host inchangée.
 
-La conception définitive de la caméra reste l'objectif de l'étape « Caméra et présentation locale » de la [ROADMAP.md](ROADMAP.md) et doit respecter [ADR-0003-LOCAL-PRESENTATION.md](../decisions/ADR-0003-LOCAL-PRESENTATION.md).
+**Résultat : aucun problème reproduit.** Décision : **la caméra stock est conservée telle quelle** — aucun composant caméra locale dédiée n'a été créé à la suite de ce test.
+
+**Réserve méthodologique** : le test a validé le *comportement* observé (pas de vol, pas de gel, chaque client ne voit que sa propre vue) ; la valeur brute de `IsMainCamera` n'a pas été inspectée directement dans l'éditeur de chaque instance pendant le test (seul le comportement affiché a été vérifié). Cette réserve ne remet pas en cause le verdict, mais signifie que la garantie n'a été vérifiée que pour le scénario testé ci-dessus (connexion, déplacement simultané, déconnexion, reconnexion d'un joueur unique) — pas pour des scénarios plus complexes (plus de deux joueurs, changement de pawn, spectateur) qui n'ont pas encore été testés.
+
+Ce test **ne constitue pas** une architecture caméra locale Kodoku dédiée au sens d'[ADR-0003-LOCAL-PRESENTATION.md](../decisions/ADR-0003-LOCAL-PRESENTATION.md) — il confirme seulement que l'approche stock actuelle ne provoque pas, pour le scénario testé, les bugs vécus sur l'ancien projet. Si un besoin de caméra plus riche apparaît plus tard (spectateur, caméra de mort, transitions), la question devra être rouverte.
+
+## `Networking.config` — permissions client testées individuellement le 2026-07-13, aucun changement appliqué
+
+Les trois réglages `ClientsCanSpawnObjects`/`ClientsCanRefreshObjects`/`ClientsCanDestroyObjects` (valeur initiale et actuelle : `true` pour les trois) ont été testés **un par un** (jamais deux en même temps), chacun mis à `false` puis remis à `true` après test, avec host + client réels :
+
+- pour chacun des trois réglages à `false` : connexion, spawn du pawn client, ownership, mouvement, réplication des vitals, late join et déconnexion se sont comportés normalement, sans erreur observée ;
+- **non testé** : le chemin de spawn de loot côté host (`LootSpawnPointComponent`/`WorldItemComponent.TryInitializeAuthoritativeNew`) n'a pas pu être exercé pendant ces passages.
+
+**Analyse statique complémentaire** (lecture du code, pas un test réseau) : aucun chemin de code Kodoku actuel n'appelle `NetworkSpawn()`/`Network.Refresh()`/`Destroy()` depuis un contexte client — le seul appelant (`LootSpawnPointComponent.TrySpawn()`) est déjà gardé par `Networking.IsHost` avant d'atteindre ces appels. Ces trois réglages ne sont donc exploités par aucun système Kodoku existant, dans un sens comme dans l'autre.
+
+**Décision : aucune valeur changée.** `ClientsCanSpawnObjects`/`ClientsCanRefreshObjects`/`ClientsCanDestroyObjects` restent à `true`, la configuration d'origine — le chemin de spawn de loot host n'ayant pas pu être vérifié à `false`, il n'y a pas de base suffisante pour changer une configuration réseau sans l'avoir testée sur ce chemin précis (voir [core-safety.md](../../.claude/rules/core-safety.md)). Un retest incluant explicitement le spawn de loot serait nécessaire avant d'envisager de passer ces réglages à `false`.
 
 ## Non implémenté
 
 Aucune trace, même en placeholder, dans le projet actuel :
 
-- Inventaire joueur networké, pickup interactif, conteneurs du monde, équipement, consommation d'objets (le noyau `InventoryContainer` local existe et est validé, voir « Mise à jour du 2026-07-12 » ci-dessus — mais aucun composant joueur ni réseau ne l'utilise encore)
-- Interaction (logique — le GameObject `Interactables` existe mais est un placeholder vide)
+- Conteneurs du monde, équipement, consommation d'objets, drop réseau, transfert entre joueurs (voir « Mise à jour du 2026-07-13 » ci-dessus pour ce qui existe désormais côté pickup/inventaire joueur — implémenté et validé pour son périmètre)
+- Interaction générique au-delà du pickup (le GameObject `Interactables` reste un placeholder vide ; le pickup ne passe pas par lui, voir ci-dessus)
 - Ennemis (logique — le GameObject `Enemies` existe mais est un placeholder vide)
 - Combat, armes
 - Chargement de zones / extraction (logique — `ExtractionPoints` existe mais est un placeholder vide)

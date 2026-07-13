@@ -1,6 +1,6 @@
 # Architecture des scènes
 
-**Statut : architecture visée, non implémentée.** `Assets/scenes/` est actuellement vide ; la scène de démarrage référencée par `kodoku.sbproj` (`scenes/minimal.scene`) n'existe pas encore sur disque — voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md).
+**Statut : architecture visée, partiellement implémentée.** `Assets/scenes/Tests/GameplayTest.scene` existe (depuis le commit `97b27d1`) et est la scène de démarrage réelle (`kodoku.sbproj` → `StartupScene: scenes/tests/gameplaytest.scene`) — la mention précédente de `scenes/minimal.scene` était obsolète, cette scène n'a jamais existé sous ce nom. Hiérarchie actuelle : `_Systems` (`GameSession`, `NetworkGameManager` avec `Sandbox.NetworkHelper`, `PlayerSpawner`, `SaveManager`, `SceneRules` — tous vides sauf `NetworkGameManager`), `_Local` (`LocalPlayerBootstrap` vide, `Main Camera`, `UI/GameHud`), `_World` (`Environment`, `SpawnPoints/SpawnPoint1-4`, `ExtractionPoints`, `Interactables`, `Enemies`, `Navigation` — tous vides sauf `Environment`/`SpawnPoints`), `_Debug` (vide). Voir [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) pour l'état factuel à jour et pour le résultat du test caméra à deux instances du 2026-07-13.
 
 ## Principes envisagés
 
@@ -15,6 +15,6 @@
 
 ## Éléments encore ouverts
 
-- Nombre et granularité des scènes/zones.
+- Nombre et granularité des scènes/zones — `GameplayTest.scene` reste, à ce jour, la seule scène du projet.
 - Mécanisme de transition entre zones (voir [../status/OPEN_QUESTIONS.md](../status/OPEN_QUESTIONS.md)).
-- Contenu exact de la scène de démarrage (`scenes/minimal.scene`, référencée par `kodoku.sbproj` mais pas encore créée).
+- Contenu définitif de la scène de test au-delà de son usage actuel de validation (`GameplayTest.scene` n'est pas destinée à rester la scène de production).
