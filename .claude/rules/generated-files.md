@@ -22,4 +22,6 @@ Règle stricte, applicable à toute opération Git sur ce dépôt : récupérati
 
 ## Fichiers générés déjà suivis dans l'historique
 
-Si un fichier généré est déjà suivi par Git (cas constaté le 2026-07-13 : `Assets/scenes/Tests/gameplaytest.scene_d`), ne pas lancer `git rm` ou `git rm --cached` automatiquement. Signaler le cas à l'utilisateur ; le retrait se fait dans un commit de nettoyage séparé et contrôlé, décidé explicitement — voir [git-workflow.md](git-workflow.md).
+Si un fichier généré est déjà suivi par Git, ne pas lancer `git rm` ou `git rm --cached` automatiquement. Signaler le cas à l'utilisateur ; le retrait se fait dans un commit de nettoyage séparé et contrôlé, décidé explicitement — voir [git-workflow.md](git-workflow.md).
+
+Cas constaté le 2026-07-13 (`Assets/scenes/Tests/gameplaytest.scene_d`) : résolu par le commit `349869c` (`chore(git): stop tracking generated scene data`). Le fichier n'est plus suivi par Git, n'existe plus localement, et reste couvert par la règle `*.scene_d` du `.gitignore`. Audit du 2026-07-13 : aucun autre fichier généré connu n'est actuellement suivi par Git dans ce dépôt.
