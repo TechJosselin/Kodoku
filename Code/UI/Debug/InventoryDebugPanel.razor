@@ -1,0 +1,61 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Kodoku.Player;
+@using Kodoku.Player.Inventory;
+@namespace Kodoku.UI
+@inherits PanelComponent
+
+<root>
+	@if ( IsOpen && Inventory is not null )
+	{
+		<div class="header">Inventory (debug) — revision @Inventory.LocalRevision, @Inventory.LocalItemCount item(s)</div>
+		<div class="entries">
+			@foreach ( var entry in Inventory.LocalEntries )
+			{
+				<div class="entry">@entry.ItemId x@entry.Quantity — (@entry.X,@entry.Y) @( entry.IsRotated ? "R" : "" ) [@entry.InstanceId]</div>
+			}
+		</div>
+		<div class="actions">
+			<button onclick=@CorruptLocalCache>Corrupt local cache</button>
+			<button onclick=@RequestResync>Request resync</button>
+		</div>
+	}
+</root>
+
+@code
+{
+	// Lu à chaque frame, jamais mis en cache — même choix que GameHud : fonctionne que le pawn local
+	// existe déjà, n'existe pas encore, ou soit remplacé (déconnexion/reconnexion) sans abonnement à
+	// gérer. N'affiche jamais l'inventaire d'un proxy : KodokuPlayerComponent.Local ne désigne jamais
+	// un pawn distant.
+	PlayerInventoryComponent Inventory => KodokuPlayerComponent.Local?.PlayerInventory;
+
+	/// <summary>
+	/// Fermé par défaut : tant que ce panneau n'affiche rien (racine vide, aucun bouton rendu), il
+	/// n'intercepte jamais les contrôles du joueur (mouvement de caméra, clic) — voir
+	/// <see cref="OnUpdate"/>. Purement local à l'affichage, jamais networké, jamais lu ailleurs.
+	/// </summary>
+	bool IsOpen { get; set; }
+
+	protected override void OnUpdate()
+	{
+		if ( Input.Pressed( "InventoryDebugToggle" ) )
+			IsOpen = !IsOpen;
+	}
+
+	protected override int BuildHash()
+	{
+		var local = KodokuPlayerComponent.Local;
+		var inventory = local?.PlayerInventory;
+		if ( !IsOpen || inventory is null )
+			return HashCode.Combine( "closed-or-no-local-inventory", IsOpen, local );
+
+		return HashCode.Combine( local, IsOpen, inventory.LocalRevision, inventory.LocalItemCount );
+	}
+
+	void CorruptLocalCache() => Inventory?.DebugCorruptLocalCache();
+
+	void RequestResync() => Inventory?.RequestSnapshot();
+}

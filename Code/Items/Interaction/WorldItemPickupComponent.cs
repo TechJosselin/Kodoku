@@ -222,10 +222,16 @@ public sealed class WorldItemPickupComponent : Component, Component.IPressable
 				: PickupResult.Fail( PickupFailureReason.InternalError );
 		}
 
-		// 9. Succès confirmé : détruire l'objet-monde. La destruction, réseau, se propage à tous
-		// les clients — c'est le signal implicite de succès côté client (pas de second aller-retour
-		// RPC de confirmation, pour éviter l'enchaînement RPC déjà documenté comme risqué dans
-		// docs/architecture/MULTIPLAYER_ARCHITECTURE.md).
+		// 9. Succès confirmé : notifier l'inventaire du propriétaire AVANT de détruire l'objet-monde
+		// (voir PlayerInventoryComponent.NotifyMutated) — le snapshot réseau du propriétaire part avant
+		// le signal implicite de succès côté client (la destruction répliquée, ci-dessous), plutôt
+		// qu'après, pour qu'un client ne voie jamais l'objet disparaître du monde sans que son
+		// inventaire local n'ait déjà commencé à se mettre à jour.
+		inventory.NotifyMutated();
+
+		// 10. Détruire l'objet-monde. La destruction, réseau, se propage à tous les clients — c'est le
+		// signal implicite de succès côté client (pas de second aller-retour RPC de confirmation, pour
+		// éviter l'enchaînement RPC déjà documenté comme risqué dans docs/architecture/MULTIPLAYER_ARCHITECTURE.md).
 		GameObject.Destroy();
 
 		return PickupResult.Ok();
