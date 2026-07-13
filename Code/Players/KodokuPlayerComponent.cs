@@ -1,4 +1,5 @@
 using System;
+using Kodoku.Player.Inventory;
 using Kodoku.Player.Vitals;
 
 namespace Kodoku.Player;
@@ -27,6 +28,8 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 	public PlayerController PlayerController { get; private set; }
 
 	public PlayerVitalsComponent PlayerVitals { get; private set; }
+
+	public PlayerInventoryComponent PlayerInventory { get; private set; }
 
 	/// <summary>
 	/// Résout le pawn Kodoku possédé par une connexion réseau donnée — mécanisme officiel pour
@@ -61,6 +64,7 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 		// les composants du GameObject — résolution de références sœurs fiable à ce stade.
 		PlayerController = Components.Get<PlayerController>();
 		PlayerVitals = Components.Get<PlayerVitalsComponent>();
+		PlayerInventory = Components.Get<PlayerInventoryComponent>();
 
 		if ( IsProxy )
 		{

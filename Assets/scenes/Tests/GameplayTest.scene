@@ -294,6 +294,55 @@
                 }
               ],
               "Children": []
+            },
+            {
+              "__guid": "bc9fdaab-1d9f-4644-9588-faf76a6301d3",
+              "__version": 2,
+              "Flags": 0,
+              "Name": "InventoryDebugPanel",
+              "Position": "0,0,0",
+              "Rotation": "0,0,0,1",
+              "Scale": "1,1,1",
+              "Tags": "",
+              "Enabled": true,
+              "NetworkMode": 2,
+              "NetworkFlags": 0,
+              "NetworkOrphaned": 0,
+              "NetworkTransmit": true,
+              "OwnerTransfer": 1,
+              "Components": [
+                {
+                  "__type": "Sandbox.ScreenPanel",
+                  "__guid": "2503b9c3-aafb-43aa-9144-c187c09f0528",
+                  "__enabled": true,
+                  "Flags": 512,
+                  "AutoScreenScale": true,
+                  "OnComponentDestroy": null,
+                  "OnComponentDisabled": null,
+                  "OnComponentEnabled": null,
+                  "OnComponentFixedUpdate": null,
+                  "OnComponentStart": null,
+                  "OnComponentUpdate": null,
+                  "Opacity": 1,
+                  "Scale": 1,
+                  "ScaleStrategy": "ConsistentHeight",
+                  "TargetCamera": null,
+                  "ZIndex": 100
+                },
+                {
+                  "__type": "Kodoku.UI.InventoryDebugPanel",
+                  "__guid": "e2d35bce-afe3-4336-9dc3-7ce952ec79ae",
+                  "__enabled": true,
+                  "Flags": 512,
+                  "OnComponentDestroy": null,
+                  "OnComponentDisabled": null,
+                  "OnComponentEnabled": null,
+                  "OnComponentFixedUpdate": null,
+                  "OnComponentStart": null,
+                  "OnComponentUpdate": null
+                }
+              ],
+              "Children": []
             }
           ]
         }

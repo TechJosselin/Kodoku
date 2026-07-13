@@ -1,0 +1,43 @@
+InventoryDebugPanel {
+	position: absolute;
+	top: 24px;
+	right: 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 12px 16px;
+	background-color: rgba( 0, 0, 0, 0.5 );
+	border-radius: 4px;
+	font-family: Poppins, sans-serif;
+	color: white;
+	min-width: 260px;
+	pointer-events: none;
+
+	.header {
+		font-size: 14px;
+		font-weight: bold;
+	}
+
+	.entries {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+
+		.entry {
+			font-size: 12px;
+			font-family: monospace;
+		}
+	}
+
+	.actions {
+		display: flex;
+		gap: 8px;
+		margin-top: 4px;
+		pointer-events: all;
+
+		button {
+			font-size: 12px;
+			padding: 4px 8px;
+		}
+	}
+}
