@@ -14,7 +14,13 @@
 		<div class="entries">
 			@foreach ( var entry in Inventory.LocalEntries )
 			{
-				<div class="entry">@entry.ItemId x@entry.Quantity — (@entry.X,@entry.Y) @( entry.IsRotated ? "R" : "" ) [@entry.InstanceId]</div>
+				<div class="entry">
+					<div class="entry-info">
+						<div class="entry-name">@entry.ItemId <span class="entry-qty">x@entry.Quantity</span></div>
+						<div class="entry-meta">(@entry.X,@entry.Y)@( entry.IsRotated ? " R" : "" ) &middot; @ShortId( entry.InstanceId )</div>
+					</div>
+					<button class="drop-button" onclick=@( () => RequestDrop( entry.InstanceId ) )>Drop</button>
+				</div>
 			}
 		</div>
 		<div class="actions">
@@ -58,4 +64,16 @@
 	void CorruptLocalCache() => Inventory?.DebugCorruptLocalCache();
 
 	void RequestResync() => Inventory?.RequestSnapshot();
+
+	// N'envoie que l'InstanceId sélectionné dans le snapshot local — aucun accès au Container
+	// canonique, aucune logique de spawn ici. Le cache local (LocalEntries) reste inchangé tant
+	// qu'aucun nouveau snapshot n'est reçu du host (succès ou échec) — voir PlayerItemDropComponent.
+	void RequestDrop( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemDrop?.RequestDrop( instanceId );
+
+	// Affichage uniquement — raccourcit un Guid complet (36 caractères) à ses 8 premiers, pour que
+	// chaque ligne reste lisible. Le panneau debug n'a pas besoin de l'identité complète à l'écran ;
+	// l'InstanceId complet reste disponible dans les logs (RequestDrop l'y transmet tel quel).
+	static string ShortId( string instanceId ) => string.IsNullOrEmpty( instanceId ) || instanceId.Length <= 8
+		? instanceId
+		: instanceId[..8];
 }
