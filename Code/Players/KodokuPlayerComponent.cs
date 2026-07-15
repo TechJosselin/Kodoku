@@ -31,6 +31,8 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 
 	public PlayerInventoryComponent PlayerInventory { get; private set; }
 
+	public PlayerItemDropComponent PlayerItemDrop { get; private set; }
+
 	/// <summary>
 	/// Résout le pawn Kodoku possédé par une connexion réseau donnée — mécanisme officiel pour
 	/// identifier, côté host, l'appelant d'une RPC via <see cref="Sandbox.Rpc.Caller"/>
@@ -65,6 +67,7 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 		PlayerController = Components.Get<PlayerController>();
 		PlayerVitals = Components.Get<PlayerVitalsComponent>();
 		PlayerInventory = Components.Get<PlayerInventoryComponent>();
+		PlayerItemDrop = Components.Get<PlayerItemDropComponent>();
 
 		if ( IsProxy )
 		{

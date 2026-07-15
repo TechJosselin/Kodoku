@@ -92,8 +92,12 @@ public sealed class WorldItemComponent : Component
 	/// Chemin de création unique et idempotent. Sur un GameObject non networké, crée
 	/// simplement une <see cref="ItemInstance"/> locale. Sur un GameObject networké, seul le
 	/// host peut l'appeler avec effet : il crée l'instance puis renseigne l'état réseau
-	/// autoritaire (<see cref="NetworkInstanceId"/>/<see cref="NetworkItemId"/>/
-	/// <see cref="NetworkQuantity"/>) pour que les autres clients restaurent la même instance.
+	/// autoritaire via <see cref="PublishAuthoritativeNetworkState"/> pour que les autres
+	/// clients restaurent la même instance. Toujours appelée après <c>NetworkSpawn()</c> dans
+	/// les flux existants (<see cref="LootSpawnPointComponent"/>) — voir
+	/// <see cref="Kodoku.Player.Inventory.PlayerItemDropComponent"/> pour un chemin qui
+	/// initialise (<see cref="TryInitializeFromInstance"/>) délibérément *avant* le spawn,
+	/// pour une <see cref="ItemInstance"/> déjà existante plutôt qu'une nouvelle.
 	/// </summary>
 	public bool TryInitializeAuthoritativeNew()
 	{
@@ -108,9 +112,7 @@ public sealed class WorldItemComponent : Component
 
 		if ( GameObject.Network.Active )
 		{
-			NetworkInstanceId = Instance.InstanceId.ToString();
-			NetworkItemId = Instance.Definition.ItemId;
-			NetworkQuantity = Instance.Quantity;
+			PublishAuthoritativeNetworkState();
 		}
 		else
 		{
@@ -153,8 +155,16 @@ public sealed class WorldItemComponent : Component
 
 	/// <summary>
 	/// Initialise ce composant depuis une <see cref="ItemInstance"/> déjà existante (restauration
-	/// réseau via <see cref="TryRestoreFromNetworkState"/>, et future sauvegarde/spawn depuis un
-	/// inventaire — non implémenté ici, seul ce point d'entrée est préparé).
+	/// réseau via <see cref="TryRestoreFromNetworkState"/>, et drop depuis un inventaire via
+	/// <see cref="Kodoku.Player.Inventory.PlayerItemDropComponent"/>). Ne renseigne jamais l'état
+	/// réseau (<see cref="NetworkInstanceId"/>/<see cref="NetworkItemId"/>/
+	/// <see cref="NetworkQuantity"/>) — voir <see cref="PublishAuthoritativeNetworkState"/> pour
+	/// cette étape séparée, appelable même avant que le GameObject ne soit networké (<c>Instance</c>
+	/// posé localement en premier, publication réseau en second, délibérément découplées pour
+	/// qu'un appelant comme <c>PlayerItemDropComponent</c> puisse garantir <see cref="IsInitialized"/>
+	/// avant même <c>NetworkSpawn()</c> — <see cref="OnStart"/> ne peut alors jamais générer une
+	/// nouvelle instance sur ce GameObject, quel que soit le moment exact où son propre cycle de
+	/// vie différé s'exécute).
 	/// </summary>
 	public bool TryInitializeFromInstance( ItemInstance instance )
 	{
@@ -184,6 +194,46 @@ public sealed class WorldItemComponent : Component
 
 		Definition = instance.Definition;
 		Instance = instance;
+		return true;
+	}
+
+	/// <summary>
+	/// Publie <see cref="NetworkInstanceId"/>/<see cref="NetworkItemId"/>/<see cref="NetworkQuantity"/>
+	/// depuis <see cref="Instance"/> déjà posée (par <see cref="TryInitializeNew"/> ou
+	/// <see cref="TryInitializeFromInstance"/>) — jamais avant. Host-only, sur un GameObject déjà
+	/// networké : setter un <c>[Sync]</c> avant <c>NetworkSpawn()</c> n'a aucun précédent confirmé
+	/// dans ce projet ni dans le code moteur inspecté (aucune garantie que la valeur serait incluse
+	/// dans l'état initial transmis aux autres clients) — le seul ordre validé par test réel à deux
+	/// instances (Tests A à G, <see cref="LootSpawnPointComponent"/>) est
+	/// <c>NetworkSpawn()</c> puis publication des propriétés réseau, jamais l'inverse. Cette méthode
+	/// reste donc appelée après <c>NetworkSpawn()</c> y compris depuis
+	/// <see cref="Kodoku.Player.Inventory.PlayerItemDropComponent"/>, où seule la pose locale de
+	/// <see cref="Instance"/> (via <see cref="TryInitializeFromInstance"/>) est déplacée avant le
+	/// spawn — pas la publication réseau elle-même.
+	/// </summary>
+	public bool PublishAuthoritativeNetworkState()
+	{
+		if ( !Networking.IsHost )
+		{
+			Log.Warning( $"[WorldItem] '{GameObject.Name}': PublishAuthoritativeNetworkState() called on a non-host client — ignored." );
+			return false;
+		}
+
+		if ( !IsInitialized )
+		{
+			Log.Warning( $"[WorldItem] '{GameObject.Name}': PublishAuthoritativeNetworkState() called before initialization — ignored." );
+			return false;
+		}
+
+		if ( !GameObject.Network.Active )
+		{
+			Log.Warning( $"[WorldItem] '{GameObject.Name}': PublishAuthoritativeNetworkState() called on a GameObject that isn't networked — ignored." );
+			return false;
+		}
+
+		NetworkInstanceId = Instance.InstanceId.ToString();
+		NetworkItemId = Instance.Definition.ItemId;
+		NetworkQuantity = Instance.Quantity;
 		return true;
 	}
 

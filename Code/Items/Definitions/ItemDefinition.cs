@@ -102,9 +102,11 @@ public sealed class ItemDefinition : GameResource
 
 	/// <summary>
 	/// Prefab optionnel à utiliser pour la représentation monde de cet item, si un rendu
-	/// non trivial (au-delà de <see cref="WorldModel"/> seul) est nécessaire. Non consommé
-	/// par aucun système actuellement — la représentation monde (WorldItemComponent)
-	/// n'est pas encore implémentée.
+	/// non trivial (au-delà de <see cref="WorldModel"/> seul) est nécessaire. Consommé par
+	/// <see cref="LootSpawnPointComponent"/> (génération de loot) et par
+	/// <see cref="Kodoku.Player.Inventory.PlayerItemDropComponent"/> (drop) — tous deux
+	/// clonent ce prefab puis le networkent ; son <c>WorldItemComponent</c> porte l'identité
+	/// autoritaire de l'exemplaire matérialisé.
 	/// </summary>
 	[Group( "World" )]
 	[Property]

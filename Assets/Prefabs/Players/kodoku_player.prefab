@@ -65,6 +65,21 @@
         "Width": 6
       },
       {
+        "__type": "Kodoku.Player.Inventory.PlayerItemDropComponent",
+        "__guid": "af60c962-0df8-4dd0-b661-1ed3d1d3219a",
+        "__enabled": true,
+        "Flags": 0,
+        "DropDistance": 48,
+        "MaxRange": 150,
+        "ObstacleMargin": 8,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
+      },
+      {
         "__type": "Sandbox.PlayerController",
         "__guid": "e153d886-b4f6-44b5-b4d2-553f9df25c0c",
         "__enabled": true,
