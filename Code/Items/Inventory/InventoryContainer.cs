@@ -188,6 +188,43 @@ public sealed class InventoryContainer
 		return InventoryOperationResult.Ok( placement );
 	}
 
+	/// <summary>
+	/// Consomme <paramref name="amount"/> unités de l'instance visée — primitive canonique pour tout
+	/// futur système d'utilisation d'item (ex. consommables). <b>Invariant central</b> :
+	/// <see cref="ItemInstance.Quantity"/> ne peut jamais valoir zéro (voir
+	/// <see cref="ItemInstance.TrySetQuantity"/>, qui refuse toute valeur &lt; 1) — il n'existe donc
+	/// aucun état représentable où une instance aurait une quantité nulle. Cette méthode respecte cet
+	/// invariant explicitement plutôt que de tenter une décrémentation qui échouerait silencieusement :
+	/// si <paramref name="amount"/> épuise exactement la quantité disponible, le <em>placement</em> est
+	/// retiré du conteneur (même effet que <see cref="TryRemove"/>) au lieu de tenter de mettre
+	/// <see cref="ItemInstance.Quantity"/> à zéro. Si <paramref name="amount"/> est strictement inférieur
+	/// à la quantité disponible, la même <see cref="ItemInstance"/> (même <see cref="ItemInstance.InstanceId"/>)
+	/// est conservée, seule sa <see cref="ItemInstance.Quantity"/> diminue. Ne mute jamais la révision ni
+	/// n'envoie de snapshot — ce conteneur reste un noyau pur sans réseau, ces responsabilités appartiennent
+	/// à l'appelant (voir <see cref="Kodoku.Player.Inventory.PlayerInventoryComponent.NotifyMutated"/>).
+	/// </summary>
+	public InventoryOperationResult TryConsume( Guid instanceId, int amount = 1 )
+	{
+		if ( !_byInstanceId.TryGetValue( instanceId, out var placement ) )
+			return InventoryOperationResult.Fail( InventoryFailureReason.ItemNotFound );
+
+		if ( amount < 1 || amount > placement.Item.Quantity )
+			return InventoryOperationResult.Fail( InventoryFailureReason.InvalidQuantity );
+
+		if ( amount == placement.Item.Quantity )
+		{
+			// Consommation totale : retire le placement plutôt que de mettre Quantity à zéro
+			// (état non représentable, voir commentaire de méthode ci-dessus).
+			RemovePlacement( placement );
+			return InventoryOperationResult.Ok( placement );
+		}
+
+		// Consommation partielle : amount < Quantity ici, donc strictement positif après retrait —
+		// TryRemoveQuantity ne peut pas échouer. Même ItemInstance, même InstanceId, conservés tels quels.
+		placement.Item.TryRemoveQuantity( amount );
+		return InventoryOperationResult.Ok( placement );
+	}
+
 	void AddPlacement( InventoryPlacement placement )
 	{
 		_placements.Add( placement );

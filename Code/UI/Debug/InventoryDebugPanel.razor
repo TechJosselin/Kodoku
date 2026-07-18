@@ -27,6 +27,10 @@
 						{
 							<button class="equip-button" onclick=@( () => RequestEquip( entry.InstanceId, definition.EquipmentSlot ) )>Equip</button>
 						}
+						@if ( definition is not null && float.IsFinite( definition.ThirstRestoreAmount ) && definition.ThirstRestoreAmount > 0f )
+						{
+							<button class="equip-button" onclick=@( () => RequestUse( entry.InstanceId ) )>Use</button>
+						}
 					</div>
 				</div>
 			}
@@ -125,6 +129,11 @@
 	}
 
 	void RequestEquip( string instanceId, EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestEquip( instanceId, slot );
+
+	// Même choix que RequestDrop : seul l'InstanceId sélectionné dans le snapshot local est transmis,
+	// aucune lecture de ThirstRestoreAmount ni d'autre donnée métier envoyée — le host revalide tout
+	// depuis Container/ItemDefinition canoniques.
+	void RequestUse( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemUse?.RequestUse( instanceId );
 
 	void RequestUnequip( EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestUnequip( slot );
 

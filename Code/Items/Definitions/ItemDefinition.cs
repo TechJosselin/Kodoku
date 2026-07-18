@@ -109,6 +109,20 @@ public sealed class ItemDefinition : GameResource
 	[Property]
 	public EquipmentSlotType EquipmentSlot { get; set; } = EquipmentSlotType.None;
 
+	// --- Consumable ---
+
+	/// <summary>
+	/// Quantité de soif restaurée par une utilisation de cet item, ou 0/valeur non finie si cet item
+	/// n'est pas utilisable — pas de propriété <c>IsConsumable</c> séparée : un booléen distinct
+	/// pourrait diverger de cette valeur (ex. <c>IsConsumable=true</c> avec un montant nul), un état
+	/// incohérent à garder synchronisé pour rien. Voir <see cref="Kodoku.Player.Inventory.PlayerItemUseComponent"/>,
+	/// seul lecteur de cette propriété pour cette V1 (aucun second effet — faim, soin... — n'existe
+	/// encore, ne pas généraliser avant qu'un second cas d'usage réel n'apparaisse).
+	/// </summary>
+	[Group( "Consumable" )]
+	[Property]
+	public float ThirstRestoreAmount { get; set; } = 0f;
+
 	// --- World ---
 
 	[Group( "World" )]

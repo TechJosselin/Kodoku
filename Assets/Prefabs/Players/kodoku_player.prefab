@@ -83,6 +83,18 @@
         "OnComponentUpdate": null
       },
       {
+        "__type": "Kodoku.Player.Inventory.PlayerItemUseComponent",
+        "__guid": "dbae72fa-61cf-4b45-855f-e55e145765a8",
+        "__enabled": true,
+        "Flags": 0,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
+      },
+      {
         "__type": "Sandbox.PlayerController",
         "__guid": "e153d886-b4f6-44b5-b4d2-553f9df25c0c",
         "__enabled": true,

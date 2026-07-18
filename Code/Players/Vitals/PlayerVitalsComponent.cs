@@ -126,6 +126,31 @@ public sealed class PlayerVitalsComponent : Component
 
 	public void SetThirst( float value ) => Thirst = value;
 
+	/// <summary>
+	/// Vrai si une restauration de soif aurait un effet observable — <see cref="Thirst"/> suit la même
+	/// convention que <see cref="Health"/>/<see cref="Stamina"/>/<see cref="Hunger"/> (valeur haute =
+	/// bon état, plein par défaut ; voir <see cref="ResetVitals"/>), donc une valeur déjà à
+	/// <see cref="MaxThirst"/> ne peut plus être restaurée. Utilisée par
+	/// <see cref="Kodoku.Player.Inventory.PlayerItemUseComponent"/> pour refuser proprement une
+	/// utilisation qui n'aurait aucun effet, avant toute mutation d'inventaire.
+	/// </summary>
+	public bool CanRestoreThirst => Thirst < MaxThirst;
+
+	/// <summary>
+	/// Applicateur autoritaire, même patron que <see cref="Heal"/>/<see cref="RestoreStamina"/> — pas
+	/// de RPC ici (voir commentaire de classe), à appeler uniquement depuis un contexte déjà
+	/// host-authoritative (ex. <see cref="Kodoku.Player.Inventory.PlayerItemUseComponent.TryUseAuthoritative"/>).
+	/// Le clamp à <see cref="MaxThirst"/> est déjà géré par <see cref="SetVital"/> via le setter de
+	/// <see cref="Thirst"/> — jamais de dépassement possible.
+	/// </summary>
+	public void RestoreThirst( float amount )
+	{
+		if ( amount <= 0f || !float.IsFinite( amount ) )
+			return;
+
+		Thirst += amount;
+	}
+
 	public void SetRadiation( float value ) => Radiation = value;
 
 	/// <summary>
