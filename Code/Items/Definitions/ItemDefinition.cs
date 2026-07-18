@@ -94,6 +94,21 @@ public sealed class ItemDefinition : GameResource
 		set => _maxStack = Math.Max( 1, value );
 	}
 
+	// --- Equipment ---
+
+	/// <summary>
+	/// Emplacement d'équipement compatible, ou <see cref="EquipmentSlotType.None"/> si cet item
+	/// n'est pas équipable — valeur par défaut, aucune modification nécessaire pour un item
+	/// existant non équipable (ex. <c>water_bottle</c>). Propriété dédiée, jamais déduite de
+	/// <see cref="Category"/> (qui contient déjà une valeur <c>Equipment</c> trop grossière — un
+	/// casque et une arme partagent cette catégorie sans être interchangeables), de
+	/// <see cref="Tags"/>, de <see cref="DisplayName"/>, de <see cref="ItemId"/>, du chemin de
+	/// fichier ou du prefab monde. Voir docs/architecture/ITEM_ARCHITECTURE.md.
+	/// </summary>
+	[Group( "Equipment" )]
+	[Property]
+	public EquipmentSlotType EquipmentSlot { get; set; } = EquipmentSlotType.None;
+
 	// --- World ---
 
 	[Group( "World" )]

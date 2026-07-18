@@ -1,0 +1,18 @@
+{
+  "ItemId": "kodoku.equipment.test_body_armor",
+  "DisplayName": "Test Body Armor",
+  "Description": "Placeholder body armor used to validate the minimal equipment milestone (Body slot).",
+  "Category": "Equipment",
+  "Tags": "None",
+  "Icon": null,
+  "GridWidth": 2,
+  "GridHeight": 3,
+  "CanRotate": true,
+  "Weight": 3.0,
+  "MaxStack": 1,
+  "EquipmentSlot": "Body",
+  "WorldModel": null,
+  "WorldPrefabOverride": "Prefabs/Items/Equipment/Body/test_body_armor.prefab",
+  "__references": [],
+  "__version": 0
+}
