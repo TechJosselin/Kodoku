@@ -2,6 +2,7 @@
 @using System.Linq;
 @using Sandbox;
 @using Sandbox.UI;
+@using Kodoku.Items;
 @using Kodoku.Player;
 @using Kodoku.Player.Inventory;
 @namespace Kodoku.UI
@@ -14,18 +15,56 @@
 		<div class="entries">
 			@foreach ( var entry in Inventory.LocalEntries )
 			{
+				var definition = ResolveDefinition( entry.ItemId );
 				<div class="entry">
 					<div class="entry-info">
 						<div class="entry-name">@entry.ItemId <span class="entry-qty">x@entry.Quantity</span></div>
 						<div class="entry-meta">(@entry.X,@entry.Y)@( entry.IsRotated ? " R" : "" ) &middot; @ShortId( entry.InstanceId )</div>
 					</div>
-					<button class="drop-button" onclick=@( () => RequestDrop( entry.InstanceId ) )>Drop</button>
+					<div class="entry-actions">
+						<button class="drop-button" onclick=@( () => RequestDrop( entry.InstanceId ) )>Drop</button>
+						@if ( definition is not null && definition.EquipmentSlot != EquipmentSlotType.None )
+						{
+							<button class="equip-button" onclick=@( () => RequestEquip( entry.InstanceId, definition.EquipmentSlot ) )>Equip</button>
+						}
+					</div>
 				</div>
 			}
 		</div>
 		<div class="actions">
 			<button onclick=@CorruptLocalCache>Corrupt local cache</button>
 			<button onclick=@RequestResync>Request resync</button>
+		</div>
+
+		<div class="header equipment-header">Equipment — @Inventory.LocalEquippedCount slot(s)</div>
+		<div class="entries">
+			@foreach ( var slot in EquipmentSlots )
+			{
+				var equipped = Inventory.LocalEquipment.FirstOrDefault( e => e.Slot == slot );
+				<div class="entry">
+					<div class="entry-info">
+						<div class="entry-name">
+							@slot :
+							@if ( equipped.InstanceId is null || string.IsNullOrEmpty( equipped.ItemId ) )
+							{
+								<span class="entry-qty">(empty)</span>
+							}
+							else
+							{
+								@equipped.ItemId <span class="entry-qty">x@equipped.Quantity</span>
+							}
+						</div>
+						@if ( !string.IsNullOrEmpty( equipped.ItemId ) )
+						{
+							<div class="entry-meta">@ShortId( equipped.InstanceId )</div>
+						}
+					</div>
+					@if ( !string.IsNullOrEmpty( equipped.ItemId ) )
+					{
+						<button class="drop-button" onclick=@( () => RequestUnequip( slot ) )>Unequip</button>
+					}
+				</div>
+			}
 		</div>
 	}
 </root>
@@ -37,6 +76,8 @@
 	// gérer. N'affiche jamais l'inventaire d'un proxy : KodokuPlayerComponent.Local ne désigne jamais
 	// un pawn distant.
 	PlayerInventoryComponent Inventory => KodokuPlayerComponent.Local?.PlayerInventory;
+
+	static readonly EquipmentSlotType[] EquipmentSlots = { EquipmentSlotType.Head, EquipmentSlotType.Body };
 
 	/// <summary>
 	/// Fermé par défaut : tant que ce panneau n'affiche rien (racine vide, aucun bouton rendu), il
@@ -58,7 +99,7 @@
 		if ( !IsOpen || inventory is null )
 			return HashCode.Combine( "closed-or-no-local-inventory", IsOpen, local );
 
-		return HashCode.Combine( local, IsOpen, inventory.LocalRevision, inventory.LocalItemCount );
+		return HashCode.Combine( local, IsOpen, inventory.LocalRevision, inventory.LocalItemCount, inventory.LocalEquippedCount );
 	}
 
 	void CorruptLocalCache() => Inventory?.DebugCorruptLocalCache();
@@ -69,6 +110,23 @@
 	// canonique, aucune logique de spawn ici. Le cache local (LocalEntries) reste inchangé tant
 	// qu'aucun nouveau snapshot n'est reçu du host (succès ou échec) — voir PlayerItemDropComponent.
 	void RequestDrop( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemDrop?.RequestDrop( instanceId );
+
+	// Résolution locale d'ItemDefinition depuis l'ItemId brut du snapshot — uniquement pour décider
+	// quel bouton afficher (un seul "Equip" utilisant le slot déclaré, aucune action si EquipmentSlot
+	// == None). Ne constitue jamais une validation métier : le host revalide tout depuis Container/
+	// ItemDefinition canoniques, quoi que ce panneau affiche ou permette de cliquer ici — voir
+	// docs/architecture/ITEM_ARCHITECTURE.md.
+	static ItemDefinition ResolveDefinition( string itemId )
+	{
+		if ( string.IsNullOrEmpty( itemId ) )
+			return null;
+
+		return ResourceLibrary.GetAll<ItemDefinition>().FirstOrDefault( d => d.ItemId == itemId );
+	}
+
+	void RequestEquip( string instanceId, EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestEquip( instanceId, slot );
+
+	void RequestUnequip( EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestUnequip( slot );
 
 	// Affichage uniquement — raccourcit un Guid complet (36 caractères) à ses 8 premiers, pour que
 	// chaque ligne reste lisible. Le panneau debug n'a pas besoin de l'identité complète à l'écran ;

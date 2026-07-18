@@ -1,0 +1,18 @@
+{
+  "ItemId": "kodoku.equipment.test_helmet",
+  "DisplayName": "Test Helmet",
+  "Description": "Placeholder helmet used to validate the minimal equipment milestone (Head slot).",
+  "Category": "Equipment",
+  "Tags": "None",
+  "Icon": null,
+  "GridWidth": 2,
+  "GridHeight": 2,
+  "CanRotate": true,
+  "Weight": 1.0,
+  "MaxStack": 1,
+  "EquipmentSlot": "Head",
+  "WorldModel": null,
+  "WorldPrefabOverride": "Prefabs/Items/Equipment/Head/test_helmet.prefab",
+  "__references": [],
+  "__version": 0
+}
