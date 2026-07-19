@@ -1,6 +1,11 @@
 # Architecture — Conteneurs du monde (V1)
 
-**Statut : conception terminée, transport réseau multi-viewer validé par test runtime réel (Spike S0), conteneur lui-même non implémenté.** Ce document a été produit par une mission de conception dédiée (branche `design/world-containers`, à partir de `main`/`df52f64`) — audit de l'existant puis architecture proposée, **aucun code de production écrit**. Le mécanisme de diffusion multi-viewer (section 7) a depuis été confirmé par un spike technique isolé exécuté en runtime réel avec un host et deux clients distants (branche `spike/world-container-multiviewer-rpc`, voir [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md) pour les logs et le détail scénario par scénario). **Rien du conteneur lui-même n'est implémenté ni validé par un test réel** — seul le transport générique l'est. Toute mention de comportement futur du conteneur reste une proposition à implémenter/vérifier dans une mission séparée, jamais un jalon gameplay terminé. Voir [../status/ROADMAP.md](../status/ROADMAP.md) et [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) pour l'état factuel du projet.
+**Statut : deux niveaux distincts, à ne jamais confondre.**
+
+- **Noyau World Container Core — implémenté et validé par test runtime réel** (branche `feature/world-container-core`, à partir de `main`/`34fac2f`) : `WorldContainerComponent` canonique host-only, sessions/viewers multi-clients, snapshots filtrés (`Rpc.FilterInclude` + `[Rpc.Broadcast]`), resynchronisation, invalidation, validation de distance (y compris hors portée en session), nettoyage à la déconnexion (`Component.INetworkListener.OnDisconnected`), rejet d'un snapshot obsolète. **Matrice de test C0-A à C0-J intégralement validée**, host + clients distants, trois sessions réelles — voir [docs/research/WORLD_CONTAINER_CORE_TESTS.md](../research/WORLD_CONTAINER_CORE_TESTS.md) pour le rapport complet.
+- **World Containers V1 complet — toujours non terminé.** Manquent : transfert conteneur → joueur, transfert joueur → conteneur, interaction monde de production (`Component.IPressable`), prefab `Wooden_Crate`, UI de production, décisions de persistance. La matrice de tests A à R décrite section 17 ci-dessous couvrirait ce système complet une fois les transferts implémentés — **elle n'a pas été exécutée** ; seule la matrice C0 (transport et sessions, sans transfert) l'a été.
+
+Ce document a été produit initialement par une mission de conception dédiée (branche `design/world-containers`, à partir de `main`/`df52f64`) — audit de l'existant puis architecture proposée. Le mécanisme de diffusion multi-viewer (section 7) a été confirmé par un spike technique isolé exécuté en runtime réel avec un host et deux clients distants (branche `spike/world-container-multiviewer-rpc`, voir [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md)), puis le noyau lui-même a été implémenté et validé comme décrit ci-dessus. **Le transfert d'item reste une proposition à implémenter/vérifier dans une mission séparée**, jamais un jalon gameplay terminé. Voir [../status/ROADMAP.md](../status/ROADMAP.md) et [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) pour l'état factuel du projet.
 
 Objectif final visé (hors périmètre de cette V1, cité pour contexte) : caisses, coffres, casiers, armoires, sacs posés dans le monde, conteneurs de loot partagés entre plusieurs joueurs — voir « Périmètre V1 » ci-dessous pour ce qui est réellement couvert maintenant.
 
@@ -476,7 +481,11 @@ Résumé des verdicts :
 
 **Ce spike ne valide pas les conteneurs eux-mêmes** — il confirme uniquement que le mécanisme réseau dont toute la section 7 dépend se comporte comme désormais documenté. L'implémentation de `WorldContainerComponent` peut commencer (voir « Plan d'implémentation » ci-dessous).
 
-### Matrice A à R — exécutable maintenant que le Spike S0 est validé, non exécutée dans cette mission
+### Matrice C0-A à C0-J — **EXÉCUTÉE ET VALIDÉE EN RUNTIME RÉEL** (noyau, sans transfert)
+
+Une matrice réduite, portant uniquement sur le noyau implémenté (sessions, snapshots, révision, distance, déconnexion — sans aucun transfert d'item, puisqu'aucun n'existe encore), a été exécutée en runtime réel host + clients distants après l'implémentation de `WorldContainerComponent`. **Dix scénarios, tous PASS** — voir [docs/research/WORLD_CONTAINER_CORE_TESTS.md](../research/WORLD_CONTAINER_CORE_TESTS.md) pour le rapport complet (logs, preuves scénario par scénario). Cette matrice C0 est distincte de la matrice A à R ci-dessous, qui porte sur le système complet une fois les transferts implémentés — **la matrice A à R n'a toujours pas été exécutée**.
+
+### Matrice A à R — exécutable une fois les transferts implémentés, toujours non exécutée
 
 | # | État initial | Action | Résultat host attendu | Snapshot attendu | Révisions attendues | État final | Duplication/perte |
 |---|---|---|---|---|---|---|---|
@@ -499,7 +508,7 @@ Résumé des verdicts :
 | Q | Inventaire joueur plein, conteneur ouvert | Tentative de transfert conteneur → joueur qui échoue | Échec propre | Aucun snapshot | Aucune révision changée | Aucune mutation partielle observable (ni le conteneur ni l'inventaire joueur n'ont changé) | Aucune |
 | R | Conteneur ouvert par un ou plusieurs viewers | Conteneur détruit/désactivé pendant la consultation | Viewers restants notifiés (si implémenté) ou, a minima, aucune exception applicative lors d'une tentative d'action ultérieure | Notification de fermeture forcée (si implémentée) ou refus propre à la prochaine requête | Aucune révision incohérente | Cache local des viewers vidé (immédiatement si notifié, ou au prochain refus sinon) | Aucune |
 
-**Ne pas exécuter ces tests dans cette passe** — conforme à la demande, aucune instance n'a été lancée, aucun log réel n'existe pour ce document.
+**Toujours non exécutée** — cette matrice suppose des transferts qui n'existent pas encore. À exécuter une fois les étapes 6/7 du plan d'implémentation (ci-dessous) réalisées.
 
 ---
 
@@ -510,13 +519,13 @@ Découpage réel dérivé de l'audit :
 1. ~~**Spike technique multi-viewer isolé** (Spike S0, section 17)~~ — **FAIT.** Exécuté en runtime réel, composant jetable supprimé après validation (voir section « Nettoyage »).
 2. ~~**Décision/ADR courte sur le transport retenu**~~ — **FAIT.** Voir section 7 de ce document (mise à jour avec le résultat réel) et [ADR-0006](../decisions/ADR-0006-WORLD-CONTAINER-VIEWER-TRANSPORT.md).
 3. **Primitive de transfert entier ou planification de placement** — sur la base du comportement déjà audité de `TryAddFirstFit` (section 9) : soit confirmer que la composition `TryAddFirstFit`+`TryRemove` suffit telle quelle (probable, vu l'audit), soit introduire à ce moment-là une primitive dédiée si un test réel révèle un écart avec le comportement audité en lecture de code.
-4. **`WorldContainerComponent` canonique** — `InventoryContainer` host-only, dimensions, pas encore de réseau ni de session. Validable en solo (comme `InventoryCoreDebugComponent` l'a été pour `InventoryContainer`). **Prochaine étape réelle du projet** — non commencée.
-5. **Sessions/viewers et snapshots** — `RequestOpen`/`RequestClose`, `_viewers`, revalidation de distance (réutilisant la formule déjà validée du pickup), snapshot (`WorldContainerSnapshotEntry`) branché sur le mécanisme confirmé à l'étape 1/2 (`Rpc.FilterInclude` + `[Rpc.Broadcast]`), resynchronisation explicite.
-6. **Transfert conteneur → joueur.**
-7. **Transfert joueur → conteneur.**
-8. **UI debug minimale** — extension du panneau debug existant (ouverture/fermeture, liste d'entrées, boutons de transfert).
-9. **Robustesse multi-viewer** — scénarios de concurrence (G, H, I, J, K, L de la matrice).
-10. **Tests runtime A à R** — exécution complète de la matrice de la section 17, y compris les scénarios non couverts par l'étape 9 (M, N, O, P, Q, R).
-11. **Nettoyage et documentation** — retrait de tout outil de debug temporaire, mise à jour de ce document avec les résultats réels, plus `CURRENT_STATE.md`/`ROADMAP.md`/`OPEN_QUESTIONS.md` une fois l'implémentation validée par test réel.
+4. ~~**`WorldContainerComponent` canonique**~~ — **FAIT.** `InventoryContainer` host-only, dimensions configurables, snapshot dimensionné correctement — voir [docs/research/WORLD_CONTAINER_CORE_TESTS.md](../research/WORLD_CONTAINER_CORE_TESTS.md).
+5. ~~**Sessions/viewers et snapshots**~~ — **FAIT.** `RequestOpen`/`RequestClose`/`RequestSnapshot`, `_viewers` host-only, revalidation de distance, snapshot filtré (`Rpc.FilterInclude` + `[Rpc.Broadcast]`), resynchronisation explicite, invalidation, rejet des snapshots obsolètes, nettoyage à la déconnexion — **matrice C0-A à C0-J intégralement validée en runtime réel** (branche `feature/world-container-core`). Voir [docs/research/WORLD_CONTAINER_CORE_TESTS.md](../research/WORLD_CONTAINER_CORE_TESTS.md).
+6. **Transfert conteneur → joueur.** — **prochaine étape réelle du projet, non commencée.**
+7. **Transfert joueur → conteneur.** — non commencée.
+8. **UI debug minimale** — extension du panneau debug existant (ouverture/fermeture, liste d'entrées, boutons de transfert). Le panneau TEMP utilisé pour valider les étapes 4/5 a été supprimé après validation (jamais destiné à survivre) ; un nouveau panneau TEMP dédié aux transferts sera nécessaire pour les étapes 6/7.
+9. **Robustesse multi-viewer** — scénarios de concurrence (G, H, I, J, K, L de la matrice A à R). Non commencée, dépend des étapes 6/7.
+10. **Tests runtime A à R** — exécution complète de la matrice de la section 17, y compris les scénarios non couverts par l'étape 9 (M, N, O, P, Q, R). Non exécutée — distincte de la matrice C0 déjà validée (voir ci-dessus).
+11. **Nettoyage et documentation** — retrait de tout outil de debug temporaire, mise à jour de ce document avec les résultats réels, plus `CURRENT_STATE.md`/`ROADMAP.md`/`OPEN_QUESTIONS.md`. **Fait pour les étapes 4/5** (ce document et les trois fichiers de statut mis à jour après la validation C0-A à C0-J) ; reste à refaire une fois les étapes 6/7/9/10 réalisées.
 
-Les étapes peuvent être ajustées selon l'audit, mais aucune implémentation de conteneur (étape 4 et suivantes) n'a encore commencé. Chaque étape est testable et revue séparément.
+Les étapes 1 à 5 sont terminées et validées par test réel. Les étapes 6 et suivantes (transfert d'item et au-delà) n'ont pas commencé. Chaque étape reste testable et revue séparément.
