@@ -1,6 +1,6 @@
 # Architecture — Conteneurs du monde (V1)
 
-**Statut : conception en cours / non implémentée / non validée en runtime / dépendante d'un spike réseau multi-viewer préalable.** Ce document a été produit par une mission de conception dédiée (branche `design/world-containers`, à partir de `main`/`df52f64`) — audit de l'existant puis architecture proposée, **aucun code de production écrit**. Rien ci-dessous n'est validé par un test réel. **Aucune implémentation de conteneur ne doit commencer avant qu'un spike technique isolé (Spike S0, section 17) n'ait confirmé le mécanisme de diffusion multi-viewer** (section 7) — c'est le préalable bloquant de ce jalon. Toute mention de comportement futur est une proposition à trancher/implémenter/vérifier dans une mission séparée, jamais un jalon gameplay terminé. Voir [../status/ROADMAP.md](../status/ROADMAP.md) et [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) pour l'état factuel du projet.
+**Statut : conception terminée, transport réseau multi-viewer validé par test runtime réel (Spike S0), conteneur lui-même non implémenté.** Ce document a été produit par une mission de conception dédiée (branche `design/world-containers`, à partir de `main`/`df52f64`) — audit de l'existant puis architecture proposée, **aucun code de production écrit**. Le mécanisme de diffusion multi-viewer (section 7) a depuis été confirmé par un spike technique isolé exécuté en runtime réel avec un host et deux clients distants (branche `spike/world-container-multiviewer-rpc`, voir [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md) pour les logs et le détail scénario par scénario). **Rien du conteneur lui-même n'est implémenté ni validé par un test réel** — seul le transport générique l'est. Toute mention de comportement futur du conteneur reste une proposition à implémenter/vérifier dans une mission séparée, jamais un jalon gameplay terminé. Voir [../status/ROADMAP.md](../status/ROADMAP.md) et [../status/CURRENT_STATE.md](../status/CURRENT_STATE.md) pour l'état factuel du projet.
 
 Objectif final visé (hors périmètre de cette V1, cité pour contexte) : caisses, coffres, casiers, armoires, sacs posés dans le monde, conteneurs de loot partagés entre plusieurs joueurs — voir « Périmètre V1 » ci-dessous pour ce qui est réellement couvert maintenant.
 
@@ -160,38 +160,56 @@ Une couche générique (`InventoryHostComponent<T>` ou équivalent) porterait l'
 
 ## 7. Modèle réseau multi-viewer — point central de cette conception
 
-C'est le risque technique principal du système, et le seul qui n'a **aucun précédent testé** dans ce projet.
+Le risque technique principal du système a été levé : le mécanisme n'a plus aucun précédent testé manquant dans ce projet, il a été confirmé par un test runtime réel (Spike S0, host + deux clients distants, branche `spike/world-container-multiviewer-rpc`). Le détail scénario par scénario (logs, séquences, verdicts) vit dans [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md) — ce document n'en reprend que la décision et ses conséquences pour l'architecture.
 
-### Ce qui est documenté ou identifié comme disponible — pas confirmé dans ce projet
+### Transport de snapshots — décision validée
 
-D'après [MULTIPLAYER_ARCHITECTURE.md](MULTIPLAYER_ARCHITECTURE.md) (source : vault Obsidian, vérifié contre l'API s&box installée à un moment donné) : `[Rpc.Broadcast]`/`[Rpc.Host]`/`[Rpc.Owner]` s'appellent comme des méthodes normales ; `Rpc.FilterInclude`/`FilterExclude` filtrent les destinataires d'un appel et ne s'imbriquent pas.
+Le transport retenu est :
 
-**Formulation retenue pour tout ce document, à ne jamais affaiblir dans une future révision** : `Rpc.FilterInclude`/`Rpc.FilterExclude` sont des API **documentées ou identifiées comme disponibles, mais leur comportement exact n'est pas encore vérifié dans ce projet**. Aucun appel à `Rpc.FilterInclude`/`FilterExclude` n'existe dans le code Kodoku actuel, et aucun test réel (host + plusieurs clients) ne les a jamais exercées. **Un spike runtime host + deux clients est bloquant avant toute implémentation** qui en dépendrait — voir « Plan d'implémentation », étape 1, et [OPEN_QUESTIONS.md](../status/OPEN_QUESTIONS.md).
+- une RPC `[Rpc.Broadcast]` ;
+- enveloppée dans `using ( Rpc.FilterInclude( viewers ) ) { ... }` avec la collection courante des viewers autorisés.
 
-### Ce qui n'est pas confirmé — question technique à vérifier avant implémentation
+Confirmé par test runtime réel (S0-B, S0-C, S0-H) : un seul appel host-side livre la même séquence/payload à un seul viewer ciblé, à plusieurs viewers simultanément, et un late joiner ajouté après coup ne reçoit que les envois postérieurs à son ajout — jamais un historique.
 
-- La forme d'appel exacte de `Rpc.FilterInclude` (bloc `using`, méthode statique à portée, paramètre attendu — liste de `Connection` ? de `Guid` de connexion ?) n'a pas été vérifiée contre le XML/l'assembly du moteur installé localement pendant cette mission de conception (à faire avant l'implémentation, cohérent avec la règle du projet : l'API locale fait foi en cas de divergence avec la doc en ligne).
-- Aucune confirmation que filtrer un `[Rpc.Broadcast]` à un sous-ensemble de connexions **arbitraire et variable d'un appel à l'autre** (la liste des viewers change à chaque ouverture/fermeture) se comporte sans effet de bord (ex. re-livraison à un ancien viewer, latence de mise à jour du filtre).
-- Aucune confirmation que plusieurs viewers reçoivent bien, **dans le même appel**, exactement la même charge utile (revision + entries) sans divergence entre eux.
-- Aucune confirmation qu'un mécanisme d'adressage individuel par `Connection` (option 2 ci-dessous) existe sous une forme différente de `Rpc.FilterInclude` à un seul élément — à vérifier également pendant le même spike, pas supposé équivalent sans preuve.
+`Rpc.FilterExclude` **n'a pas été testé** et n'est pas nécessaire au design retenu — ne jamais le présenter comme validé dans une future révision de ce document.
 
-### Options comparées
+### Collection vide
 
-1. **Broadcast filtré vers les viewers** — `[Rpc.Broadcast]` + `Rpc.FilterInclude(viewers)`, un seul appel host-side, un seul point de construction du snapshot, filtré à l'ensemble courant de `_viewers`. **Option préférée si le spike la confirme** — avantage : un seul appel réseau produirait une livraison identique à tous les viewers dans le même instant logique (host mono-thread), satisfaisant directement l'exigence « plusieurs viewers reçoivent exactement la même révision après une mutation ». **Non confirmée à ce jour.**
-2. **RPC adressée individuellement à chaque `Connection`** — une méthode `[Rpc.Broadcast]` appelée une fois par viewer avec un filtre à un seul élément (`Rpc.FilterInclude(singleViewer)`), en boucle host-side, ou tout autre mécanisme d'adressage individuel que le spike révélerait. Fonctionnellement équivalent à l'option 1 pour le résultat final, mais engendre N appels réseau au lieu d'un seul. **Option de repli**, à adopter seulement si l'option 1 (filtre à N éléments) ne se comporte pas comme attendu pendant le spike.
-3. **Réplication globale** (`[Sync(SyncFlags.FromHost)]` du contenu complet, visible par tous les clients en permanence) — **rejetée** pour cette V1 : rendrait le contenu de tout conteneur du monde public en permanence (violerait la décision de portée privée aux viewers, section 6), et pour un conteneur de grande taille représenterait un coût réseau permanent même sans aucun viewer, contrairement au modèle événementiel proposé. Rejetée pour confidentialité **et** coût, pas seulement l'un des deux.
-4. **Ownership temporaire** (réassigner `GameObject.Network.Owner` à chaque viewer successivement pour utiliser `[Rpc.Owner]`) — **rejetée explicitement**. Un `GameObject` n'a qu'un seul owner à la fois ; ceci ne supporterait jamais plusieurs viewers simultanés et contredirait la garde de la section 6 (« un coffre partagé n'appartient pas au premier joueur qui l'ouvre »). Cité ici uniquement pour l'écarter formellement.
+Confirmé par test runtime réel (S0-A) : `Rpc.FilterInclude` avec une collection vide de viewers n'envoie à personne — ni aux non-viewers, ni au host appelant lui-même s'il n'est pas explicitement inclus dans la collection — et ne retombe jamais sur un broadcast global. Aucune exception observée.
 
-### Décision
+Le futur `WorldContainerComponent` peut néanmoins éviter l'appel RPC lorsque `_viewers.Count == 0`, pour ne pas produire un envoi réseau inutile — c'est une optimisation, pas une condition de correction (le comportement est déjà sûr sans cette garde).
 
-**Suspendue au spike technique.** Aucune des options 1 et 2 n'est confirmée fonctionnelle dans ce projet à ce jour — la décision définitive entre broadcast filtré (option 1) et envoi individuel (option 2) **ne peut pas être prise dans ce document** ; elle dépend du résultat du Spike S0 (voir « Plan d'implémentation », étape 1, et « Matrice de tests », Spike S0). Les options 3 et 4 sont rejetées indépendamment du résultat du spike (confidentialité/coût pour la 3, incompatibilité structurelle avec le multi-viewer pour la 4).
+### Invalidation ciblée
+
+Confirmé par test runtime réel (S0-D), ordre validé exactement tel que conçu :
+
+1. `Rpc.FilterInclude` sur la seule `Connection` à invalider ;
+2. envoi de la RPC d'invalidation — reçue par ce seul viewer ;
+3. retrait de cette `Connection` de la collection de viewers ;
+4. les envois suivants (snapshots de mutation) ne l'incluent plus.
+
+### Déconnexion d'un viewer
+
+Mécanisme principal retenu, confirmé par test runtime réel (S0-G) : `Component.INetworkListener.OnDisconnected(Connection)`. Le composant qui héberge `_viewers` doit implémenter cette interface — le callback s'est déclenché immédiatement à la déconnexion (avant même le prochain envoi de snapshot), retirant la connexion sans exception et sans tentative d'envoi vers une connexion morte.
+
+La future implémentation doit conserver, en complément, une purge défensive légère (retirer toute `Connection` avec `IsActive == false`) avant chaque envoi — mais cette purge n'est **pas** la source principale du nettoyage validé, et ne doit jamais être présentée comme telle : c'est un filet de sécurité, `OnDisconnected` est le mécanisme réellement responsable dans le test observé.
+
+### Idempotence — réserve non bloquante
+
+Les gardes d'idempotence (ajout d'une connexion déjà viewer, retrait d'une connexion déjà absente) reposent sur de simples vérifications de collection C# côté host, sans composante réseau. **Elles n'ont pas été exercées en runtime réel** pendant le Spike S0 (scénarios S0-E/S0-F non exécutés — l'outil debug utilisé pour le spike n'exposait pas de bouton permettant de déclencher l'action invalide). Ceci ne bloque pas la décision d'architecture ci-dessus, mais ne doit jamais être présenté comme « validé en runtime » dans une future révision de ce document ou d'`OPEN_QUESTIONS.md`. Une confirmation runtime future passerait soit par une UI de test dédiée forçant l'action invalide, soit par un outil de test déterministe appelant directement les méthodes hors RPC (même patron que `TryPickupAuthoritative`/`TryDropAuthoritative`).
+
+### Options rejetées
+
+- **Réplication globale** (`[Sync(SyncFlags.FromHost)]` du contenu complet, visible par tous les clients en permanence) — rendrait le contenu de tout conteneur du monde public en permanence (violerait la décision de portée privée aux viewers, section 6), et représenterait un coût réseau permanent même sans aucun viewer. Rejetée pour confidentialité **et** coût.
+- **Ownership temporaire** (réassigner `GameObject.Network.Owner` à chaque viewer successivement pour utiliser `[Rpc.Owner]`) — rejetée explicitement. Un `GameObject` n'a qu'un seul owner à la fois ; ceci ne supporterait jamais plusieurs viewers simultanés et contredirait la garde de la section 6 (« un coffre partagé n'appartient pas au premier joueur qui l'ouvre »).
+- **Envoi individuel en boucle** (une RPC par viewer, filtre à un seul élément à chaque itération) — non nécessaire : le broadcast filtré à N éléments (option retenue ci-dessus) couvre déjà le cas multi-viewer en un seul appel, confirmé par S0-C/S0-H. Resterait une option de repli si un besoin futur (hors périmètre connu aujourd'hui) exigeait un traitement différencié par viewer.
 
 ### Reste du modèle réseau
 
 - **Resynchronisation après ouverture** : même patron que `PlayerInventoryComponent.RequestSnapshot()` — un viewer nouvellement ajouté reçoit un snapshot complet immédiatement (revision courante, jamais un delta).
 - **Retrait d'un viewer** (fermeture explicite, éloignement détecté lors d'une requête, déconnexion) : retiré de `_viewers` host-side ; aucun message de confirmation nécessaire vers ce client au-delà de la réponse normale à sa requête de fermeture (voir section 8).
-- **Arrivée d'un nouveau viewer pendant qu'un autre consulte** : n'affecte en rien les viewers déjà présents — chacun reçoit son propre snapshot initial au moment de son ouverture ; une mutation ultérieure republie à **tous** les viewers courants (y compris celui déjà présent), jamais un message différencié « bienvenue » vs « mise à jour ».
-- **Fermeture/destruction du conteneur** : si le `GameObject` est détruit alors que des viewers existent encore, recommandé (mais non bloquant pour le critère de fin de V1) : notifier les viewers restants d'une fermeture forcée pour qu'ils vident leur cache local proprement, plutôt que de les laisser avec un panneau figé sur une dernière révision jamais invalidée.
+- **Arrivée d'un nouveau viewer pendant qu'un autre consulte** : n'affecte en rien les viewers déjà présents — chacun reçoit son propre snapshot initial au moment de son ouverture ; une mutation ultérieure republie à **tous** les viewers courants (y compris celui déjà présent), jamais un message différencié « bienvenue » vs « mise à jour ». Confirmé par S0-H (late join sans effet sur un viewer déjà présent).
+- **Fermeture/destruction du conteneur** : si le `GameObject` est détruit alors que des viewers existent encore, recommandé (mais non bloquant pour le critère de fin de V1) : notifier les viewers restants d'une fermeture forcée pour qu'ils vident leur cache local proprement, plutôt que de les laisser avec un panneau figé sur une dernière révision jamais invalidée — mécanisme identique à l'invalidation ciblée déjà validée ci-dessus.
 
 ---
 
@@ -227,12 +245,9 @@ Cycle complet, conçu comme un aller-retour requête/réponse **unique** par ét
 
 **Précision explicite, pour éviter toute ambiguïté** : l'absence de vérification périodique proactive (décision de portée, section 3) ne signifie **en aucun cas** qu'un joueur hors de portée peut continuer à transférer des items. Toute requête mutante (`RequestTransferToPlayer`/`RequestTransferToContainer`) revalide la distance **avant** toute mutation (voir section 9, étape 1 de chaque sens de transfert) — un rejet de distance est un refus propre, aucune mutation, exactement comme un rejet de session ou d'`InstanceId` absent.
 
-Une fois un rejet de distance constaté par le host lors d'une tentative de transfert, la session **doit** être invalidée côté host (retrait immédiat de `_viewers`) — un joueur hors de portée qui a échoué une fois ne doit pas rester considéré comme viewer valide pour une tentative suivante. Deux cas selon le résultat du spike (section 7) :
+Une fois un rejet de distance constaté par le host lors d'une tentative de transfert, la session **doit** être invalidée côté host (retrait immédiat de `_viewers`) — un joueur hors de portée qui a échoué une fois ne doit pas rester considéré comme viewer valide pour une tentative suivante.
 
-- **Si un mécanisme de notification ciblée est confirmé disponible** (issue du spike) : le host notifie explicitement ce client de la fermeture forcée de sa session, pour qu'il vide son cache local et ferme son panneau immédiatement — comportement propre, recommandé.
-- **Si aucun mécanisme de notification ciblée n'est confirmé** (repli, section 7) : au minimum, le host invalide la session **côté host uniquement** (retrait de `_viewers`) sans notification active ; le client garde un panneau affichant un état obsolète jusqu'à sa prochaine tentative d'action (qui échouera alors avec un refus de session, déclenchant côté UI une demande de resynchronisation ou une fermeture explicite) ou jusqu'à ce qu'il ferme lui-même le panneau. **Ce repli est acceptable pour la sécurité** (aucune mutation n'est jamais permise après invalidation host) mais dégrade l'expérience utilisateur (panneau visuellement obsolète) — compromis explicite de cette V1, pas un oubli.
-
-**La notification de fermeture forcée est donc explicitement dépendante du résultat du spike réseau multi-viewer** (section 7) — à ne pas considérer comme acquise avant que le spike ne confirme un mécanisme de notification ciblée utilisable.
+**Un mécanisme de notification ciblée est confirmé disponible** (Spike S0, S0-D, section 7) : le host notifie explicitement ce client de la fermeture forcée de sa session (`Rpc.FilterInclude` sur cette seule `Connection`), pour qu'il vide son cache local et ferme son panneau immédiatement, puis retire la connexion de `_viewers` — comportement propre, retenu comme comportement standard de cette V1, pas un simple repli optionnel.
 
 ---
 
@@ -315,7 +330,7 @@ Symétrique, mêmes étapes distinguées :
 | Double clic sur le même `InstanceId` | Identique au premier scénario — la seconde requête arrive après que la première a déjà muté l'état, `ItemNotFound` ou refus de destination pleine selon le cas, jamais de double effet. |
 | Requête reçue après la fermeture (le viewer a fermé son panneau, ou a été retiré) | Revérifiée à chaque requête (section 8) — `_viewers.Contains(caller)` échoue → refus propre, aucune mutation. |
 | Requête basée sur un snapshot obsolète | Non pertinent par construction — le host ne lit jamais un état « attendu » envoyé par le client, seulement l'`InstanceId` à résoudre fraîchement contre l'état canonique courant à chaque appel. |
-| Joueur déconnecté pendant une transaction | Le modèle d'exécution observé dans ce projet est un appel host synchrone de bout en bout (aucune preuve de RPC asynchrone à callback différé dans le code actuel) — une déconnexion ne peut pas interrompre un appel déjà en cours d'exécution côté host. Ce qui peut arriver : une `Connection` présente dans `_viewers` devient invalide après coup. À nettoyer via `INetworkListener.OnDisconnected` (host-only, mécanisme déjà documenté dans [MULTIPLAYER_ARCHITECTURE.md](MULTIPLAYER_ARCHITECTURE.md#déconnexion-confirmé-mécanisme--stratégie-kodoku-ouverte)) ou, à défaut, en validant la validité de chaque `Connection` avant de l'inclure dans un filtre de diffusion. **Aucun précédent de nettoyage d'un ensemble de connexions n'existe encore dans ce projet** (`IsClaimed` est un booléen, pas une collection) — à vérifier/construire à l'implémentation, pas un risque bloquant mais un point neuf. |
+| Joueur déconnecté pendant une transaction | Le modèle d'exécution observé dans ce projet est un appel host synchrone de bout en bout (aucune preuve de RPC asynchrone à callback différé dans le code actuel) — une déconnexion ne peut pas interrompre un appel déjà en cours d'exécution côté host. Ce qui peut arriver : une `Connection` présente dans `_viewers` devient invalide après coup. Nettoyage confirmé par test runtime réel (Spike S0, S0-G) via `Component.INetworkListener.OnDisconnected(Connection)`, déclenché immédiatement à la déconnexion, avec une purge défensive légère en complément avant chaque envoi (voir section 7). |
 | Conteneur détruit ou scène déchargée pendant la consultation | Aucun système de déchargement de scène n'existe (une seule scène). La destruction directe d'un `GameObject` conteneur (cas rare en V1, aucune mécanique ne la déclenche) devrait, si elle survient, notifier les viewers restants (voir section 7) — pas bloquant pour cette V1 tant qu'aucune mécanique de destruction de conteneur n'est livrée (voir section 15). |
 | Deux ouvertures simultanées (deux joueurs ouvrent en même temps) | Autorisé par design (V1 multi-viewer) — chacune ajoute sa propre `Connection` à `_viewers`, aucun conflit. |
 
@@ -428,35 +443,40 @@ Décrite sans développement, en extension du panneau debug déjà établi (`Cod
 
 ## 16. Questions encore ouvertes
 
-Toutes explicitement à trancher/vérifier avant ou pendant l'implémentation, pas résolues arbitrairement ici :
+Toutes explicitement à trancher/vérifier avant ou pendant l'implémentation, pas résolues arbitrairement ici. Les deux premières questions de la version précédente de ce document (forme exacte de `Rpc.FilterInclude`, nettoyage à la déconnexion) sont **résolues** par le Spike S0 (section 7) et retirées de cette liste.
 
-1. **Forme exacte et comportement réel de `Rpc.FilterInclude`/`FilterExclude`** — non vérifiée contre l'assembly/le XML du moteur installé localement pendant cette mission de conception. **Bloquant pour l'étape 3 du plan d'implémentation** (voir ci-dessous) : à vérifier par un test minimal isolé avant de construire le reste du système multi-viewer.
-2. **Nettoyage d'un ensemble de `Connection` à la déconnexion** — aucun précédent dans ce projet (seuls des booléens host-only existent aujourd'hui, `IsClaimed`/`HasEvaluated`). Le mécanisme exact (`INetworkListener.OnDisconnected`, ou validation de connexion avant diffusion) reste à choisir à l'implémentation.
-3. **Notification de fermeture forcée aux viewers restants** (conteneur détruit pendant consultation) — recommandée mais non conçue en détail (quel message, quel format).
-4. **Ordre late join des `[Sync]` vs cycle de vie des composants** — question déjà ouverte pour tout le projet ([OPEN_QUESTIONS.md](../status/OPEN_QUESTIONS.md)), pas spécifique aux conteneurs mais pertinente pour `RuntimeContainerId` si un late joiner doit un jour le lire avant toute interaction.
-5. **`StableContainerId`** — décision de le réserver maintenant recommandée, pas encore actée formellement (à confirmer avec l'utilisateur avant l'implémentation si jugé nécessaire, ou à trancher à l'implémentation elle-même comme un détail réversible).
-6. **Test de concurrence déterministe** — conception qui le permettrait (séparation transport RPC/méthode métier, comme pour pickup/drop/équipement), outil non construit — même réserve que les jalons précédents.
-7. **Comportement exact quand un viewer s'éloigne pendant que le panneau reste ouvert** (pas de fermeture automatique, section 3/8) — accepté comme limite connue de cette V1, pas une question bloquante mais un compromis explicite à documenter dans un futur retour utilisateur si jugé gênant en pratique.
+1. **Notification de fermeture forcée aux viewers restants** (conteneur détruit pendant consultation) — mécanisme de transport confirmé (invalidation ciblée, section 7), mais le contenu exact du message et le déclenchement précis (quand un `GameObject` conteneur est détruit) restent à concevoir à l'implémentation.
+2. **Ordre late join des `[Sync]` vs cycle de vie des composants** — question déjà ouverte pour tout le projet ([OPEN_QUESTIONS.md](../status/OPEN_QUESTIONS.md)), pas spécifique aux conteneurs mais pertinente pour `RuntimeContainerId` si un late joiner doit un jour le lire avant toute interaction.
+3. **`StableContainerId`** — décision de le réserver maintenant recommandée, pas encore actée formellement (à confirmer avec l'utilisateur avant l'implémentation si jugé nécessaire, ou à trancher à l'implémentation elle-même comme un détail réversible).
+4. **Test de concurrence déterministe** — conception qui le permettrait (séparation transport RPC/méthode métier, comme pour pickup/drop/équipement), outil non construit — même réserve que les jalons précédents.
+5. **Comportement exact quand un viewer s'éloigne pendant que le panneau reste ouvert** (pas de fermeture automatique, section 3/8) — accepté comme limite connue de cette V1, pas une question bloquante mais un compromis explicite à documenter dans un futur retour utilisateur si jugé gênant en pratique.
+6. **Idempotence ajout/retrait de viewer non exercée en runtime** (S0-E/S0-F, section 7) — garde de code existante, non bloquante, à confirmer un jour par un outil de test déterministe si jugé utile.
 
 ---
 
-## 17. Matrice de tests proposée — Spike S0 puis A à R — validation runtime réelle, non exécutée dans cette mission
+## 17. Matrice de tests proposée — Spike S0 exécuté et validé, matrice A à R non exécutée
 
-**Ces scénarios sont des validations runtime réelles à plusieurs instances (host + clients distants), pas des tests automatisés — aucune suite de tests automatisée n'existe dans ce projet (voir [CLAUDE.md](../../CLAUDE.md#compilation-et-tests)).** Aucun de ces scénarios n'a été exécuté pendant cette mission de conception.
+**Ces scénarios sont des validations runtime réelles à plusieurs instances (host + clients distants), pas des tests automatisés — aucune suite de tests automatisée n'existe dans ce projet (voir [CLAUDE.md](../../CLAUDE.md#compilation-et-tests)).**
 
-### Spike S0 — transport multi-viewer (prérequis technique, séparé de la validation des conteneurs)
+### Spike S0 — transport multi-viewer — **EXÉCUTÉ ET VALIDÉ EN RUNTIME RÉEL**
 
-**Ce spike ne valide pas les conteneurs eux-mêmes** — il vérifie uniquement que le mécanisme réseau dont toute la section 7 dépend se comporte comme documenté. **Bloquant avant toute écriture de code de `WorldContainerComponent` allant au-delà d'un noyau non networké.** Un seul host, deux clients distants si possible (au minimum un host + un client), un objet réseau minimal et jetable portant une seule méthode `[Rpc.Broadcast]` triviale (un entier incrémental, aucune donnée métier) :
+Exécuté avec un host et deux clients distants (branche `spike/world-container-multiviewer-rpc`, composant jetable `MultiViewerRpcSpikeComponent`, depuis supprimé — voir section « Nettoyage » du plan d'implémentation). Résultats détaillés (logs, séquences, verdicts scénario par scénario) : [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md).
 
-- Client A rejoint, devient « autorisé » (ajouté à un ensemble host-only de test) ; client B rejoint, reste « non autorisé ».
-- Un envoi filtré à A seul (`Rpc.FilterInclude`/mécanisme équivalent) est déclenché côté host → **vérifier que seul A le reçoit**, que B ne reçoit rien.
-- B est ajouté à l'ensemble autorisé → un nouvel envoi filtré aux deux → **vérifier que A et B reçoivent tous les deux exactement le même envoi**.
-- A est retiré de l'ensemble autorisé → un nouvel envoi filtré au reste → **vérifier que seul B le reçoit désormais**.
-- B se déconnecte → **vérifier qu'aucune exception ne survient côté host**, et qu'aucune référence à la connexion de B ne persiste dans l'ensemble de test (nettoyage confirmé, pas supposé).
+Résumé des verdicts :
 
-**Résultat attendu de ce spike** : soit une confirmation de l'option 1 (broadcast filtré, section 7), soit un constat d'échec forçant l'option 2 (envoi individuel) — dans les deux cas, la section 7 de ce document doit être mise à jour avec le résultat réel avant de poursuivre l'implémentation (voir « Plan d'implémentation »).
+- **S0-A** (aucun viewer) — PASS.
+- **S0-B** (un viewer) — PASS.
+- **S0-C** (deux viewers) — PASS.
+- **S0-D** (invalidation ciblée puis retrait) — PASS.
+- **S0-E** (ajout dupliqué) — **non exécuté**, limite de l'outil debug utilisé, non bloquant (voir section 7, « Idempotence »).
+- **S0-F** (retrait idempotent) — **non exécuté**, même réserve.
+- **S0-G** (déconnexion d'un viewer) — PASS.
+- **S0-H** (late join) — PASS.
+- **S0-I** (réouverture) — PASS.
 
-### Matrice A à R — exécutable seulement après un Spike S0 réussi
+**Ce spike ne valide pas les conteneurs eux-mêmes** — il confirme uniquement que le mécanisme réseau dont toute la section 7 dépend se comporte comme désormais documenté. L'implémentation de `WorldContainerComponent` peut commencer (voir « Plan d'implémentation » ci-dessous).
+
+### Matrice A à R — exécutable maintenant que le Spike S0 est validé, non exécutée dans cette mission
 
 | # | État initial | Action | Résultat host attendu | Snapshot attendu | Révisions attendues | État final | Duplication/perte |
 |---|---|---|---|---|---|---|---|
@@ -485,13 +505,13 @@ Toutes explicitement à trancher/vérifier avant ou pendant l'implémentation, p
 
 ## 18. Plan d'implémentation proposé
 
-**Aucune implémentation de conteneur ne doit précéder l'étape 1 (spike bloquant).** Découpage réel dérivé de l'audit :
+Découpage réel dérivé de l'audit :
 
-1. **Spike technique multi-viewer isolé** (Spike S0, section 17) — composant minimal, jetable, aucune donnée métier. **Bloquant** pour tout ce qui suit au-delà de l'étape 2.
-2. **Décision/ADR courte sur le transport retenu** — une fois le spike exécuté, consigner le résultat réel (option 1 confirmée, ou repli sur l'option 2) dans une décision courte (mise à jour de la section 7 de ce document a minima ; un ADR séparé si le résultat structure durablement d'autres systèmes futurs au-delà des conteneurs). Ne pas construire la suite sur une hypothèse non confirmée.
+1. ~~**Spike technique multi-viewer isolé** (Spike S0, section 17)~~ — **FAIT.** Exécuté en runtime réel, composant jetable supprimé après validation (voir section « Nettoyage »).
+2. ~~**Décision/ADR courte sur le transport retenu**~~ — **FAIT.** Voir section 7 de ce document (mise à jour avec le résultat réel) et [ADR-0006](../decisions/ADR-0006-WORLD-CONTAINER-VIEWER-TRANSPORT.md).
 3. **Primitive de transfert entier ou planification de placement** — sur la base du comportement déjà audité de `TryAddFirstFit` (section 9) : soit confirmer que la composition `TryAddFirstFit`+`TryRemove` suffit telle quelle (probable, vu l'audit), soit introduire à ce moment-là une primitive dédiée si un test réel révèle un écart avec le comportement audité en lecture de code.
-4. **`WorldContainerComponent` canonique** — `InventoryContainer` host-only, dimensions, pas encore de réseau ni de session. Validable en solo (comme `InventoryCoreDebugComponent` l'a été pour `InventoryContainer`).
-5. **Sessions/viewers et snapshots** — `RequestOpen`/`RequestClose`, `_viewers`, revalidation de distance (réutilisant la formule déjà validée du pickup), snapshot (`WorldContainerSnapshotEntry`) branché sur le mécanisme confirmé à l'étape 1, resynchronisation explicite.
+4. **`WorldContainerComponent` canonique** — `InventoryContainer` host-only, dimensions, pas encore de réseau ni de session. Validable en solo (comme `InventoryCoreDebugComponent` l'a été pour `InventoryContainer`). **Prochaine étape réelle du projet** — non commencée.
+5. **Sessions/viewers et snapshots** — `RequestOpen`/`RequestClose`, `_viewers`, revalidation de distance (réutilisant la formule déjà validée du pickup), snapshot (`WorldContainerSnapshotEntry`) branché sur le mécanisme confirmé à l'étape 1/2 (`Rpc.FilterInclude` + `[Rpc.Broadcast]`), resynchronisation explicite.
 6. **Transfert conteneur → joueur.**
 7. **Transfert joueur → conteneur.**
 8. **UI debug minimale** — extension du panneau debug existant (ouverture/fermeture, liste d'entrées, boutons de transfert).
@@ -499,4 +519,4 @@ Toutes explicitement à trancher/vérifier avant ou pendant l'implémentation, p
 10. **Tests runtime A à R** — exécution complète de la matrice de la section 17, y compris les scénarios non couverts par l'étape 9 (M, N, O, P, Q, R).
 11. **Nettoyage et documentation** — retrait de tout outil de debug temporaire, mise à jour de ce document avec les résultats réels, plus `CURRENT_STATE.md`/`ROADMAP.md`/`OPEN_QUESTIONS.md` une fois l'implémentation validée par test réel.
 
-Les étapes peuvent être ajustées selon l'audit ou le résultat du spike, mais **aucune implémentation de conteneur ne doit précéder l'étape 1**. Chaque étape est testable et revue séparément.
+Les étapes peuvent être ajustées selon l'audit, mais aucune implémentation de conteneur (étape 4 et suivantes) n'a encore commencé. Chaque étape est testable et revue séparément.
