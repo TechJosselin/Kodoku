@@ -120,6 +120,48 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 	/// <summary>Incrémenté à chaque <see cref="ReceiveTransferResult"/> reçu — permet à l'UI/aux tests de détecter un nouveau résultat même si son contenu est identique au précédent.</summary>
 	public int LocalTransferResultSequence { get; private set; }
 
+	/// <summary>
+	/// Référence locale (non networkée) vers le conteneur dont une session vient de s'ouvrir pour CE
+	/// client — même esprit que <see cref="Kodoku.Player.KodokuPlayerComponent.Local"/> : statique,
+	/// réévaluée par événements, jamais un lien de scène figé. Seul point d'entrée prévu pour une
+	/// future UI de production qui doit savoir « quel conteneur dois-je afficher ? » sans avoir à
+	/// interroger tous les <see cref="WorldContainerComponent"/> de la scène. Mise à jour uniquement
+	/// depuis <see cref="ReceiveSnapshot"/> (ouverture)/<see cref="ReceiveInvalidate"/> (fermeture) —
+	/// jamais depuis <see cref="Kodoku.World.Containers.WorldContainerInteractionComponent.Press"/>
+	/// directement, qui ne fait que déclencher la requête : seule la confirmation réseau (snapshot
+	/// reçu) prouve qu'une session est réellement ouverte côté host.
+	/// </summary>
+	public static WorldContainerComponent LocalOpenContainer { get; private set; }
+
+	/// <summary>Déclenché quand <see cref="LocalOpenContainer"/> passe de fermé à ouvert pour ce conteneur précis.</summary>
+	public static event Action<WorldContainerComponent> LocalContainerOpened;
+
+	/// <summary>Déclenché quand <see cref="LocalOpenContainer"/> se ferme pour ce conteneur précis (volontaire, invalidation, ou destruction locale).</summary>
+	public static event Action<WorldContainerComponent> LocalContainerClosed;
+
+	/// <summary>
+	/// Le conteneur le plus récemment demandé localement par CE client, TANT QUE cette demande n'a
+	/// pas encore été confirmée — une intention en attente, jamais une confirmation, jamais un
+	/// historique. Distinct de <see cref="LocalOpenContainer"/> (état confirmé par le host). Sert de
+	/// filtre anti-réponse-retardée dans <see cref="ReceiveSnapshot"/> : si un snapshot d'ouverture
+	/// arrive pour un conteneur qui n'est plus celui-ci, c'est la confirmation tardive d'un choix déjà
+	/// abandonné (deux ouvertures rapprochées sur des conteneurs différents, réponses reçues dans un
+	/// ordre non garanti) — ce conteneur ne doit alors jamais devenir <see cref="LocalOpenContainer"/>.
+	///
+	/// Assigné uniquement par <see cref="RequestLocalOpen"/>, nettoyé (via
+	/// <see cref="ClearLocalRequestedContainerIfSelf"/>, toujours gardé par une comparaison à
+	/// <c>this</c>) dès que la demande est consommée par un snapshot accepté, ou devient obsolète sans
+	/// confirmation (invalidation, destruction).
+	///
+	/// Si le host refuse <see cref="RequestOpen"/> (distance, autorité, conteneur indisponible), aucune
+	/// réponse n'est envoyée au client — ce champ peut rester bloqué sur un conteneur qui ne s'ouvrira
+	/// jamais, jusqu'à la prochaine demande. Sans conséquence : les trois chemins d'échec de
+	/// <see cref="TryOpenAuthoritative"/> retournent tous avant <c>_viewers.Add(requester)</c>, donc ce
+	/// client n'est jamais ajouté comme viewer et ne peut structurellement jamais recevoir de snapshot
+	/// pour ce conteneur.
+	/// </summary>
+	static WorldContainerComponent _localRequestedContainer;
+
 	protected override void OnStart()
 	{
 		// Même choix que PlayerInventoryComponent/WorldItemComponent : Networking.IsHost, pas IsProxy.
@@ -182,6 +224,36 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 		SendSnapshotTo( requester );
 
 		return WorldContainerOperationResult.Ok();
+	}
+
+	/// <summary>
+	/// Point d'entrée local pour « le joueur veut consulter CE conteneur maintenant » — appelé depuis
+	/// <see cref="Kodoku.World.Containers.WorldContainerInteractionComponent.Press"/>, jamais
+	/// <see cref="RequestOpen"/> directement (qui reste le transport RPC pur). Invariant : un joueur
+	/// local ne possède qu'un seul conteneur monde actif dans l'UI à un instant donné — les autres
+	/// joueurs peuvent consulter le même conteneur en parallèle sans effet ici, cette coordination est
+	/// strictement locale à CE client, jamais networkée.
+	///
+	/// Ferme immédiatement (<see cref="CloseLocalSessionImmediately"/>, sans attendre le réseau)
+	/// l'ancien conteneur actif s'il diffère de la cible — garantit un ordre local déterministe
+	/// (<see cref="LocalContainerClosed"/> pour l'ancien avant <see cref="LocalContainerOpened"/> pour
+	/// le nouveau), puis enregistre l'intention (<see cref="_localRequestedContainer"/>) pour que
+	/// <see cref="ReceiveSnapshot"/> puisse rejeter la confirmation tardive d'un choix déjà abandonné.
+	///
+	/// L'ordre local des événements est garanti (fermeture synchrone avant l'envoi réseau de la nouvelle
+	/// demande). L'ordre de traitement du host entre les deux RPC sortantes (`RequestClose()` de
+	/// l'ancien, `RequestOpen()` du nouveau) n'est en revanche garanti nulle part — un chevauchement
+	/// transitoire côté host n'est pas prouvé impossible, mais sans conséquence observable : les deux
+	/// RPC sont idempotentes, l'état final converge de toute façon, et l'UI locale se pilote sur
+	/// <see cref="LocalOpenContainer"/>/les événements ci-dessus, déjà déterministes.
+	/// </summary>
+	public void RequestLocalOpen()
+	{
+		if ( LocalOpenContainer.IsValid() && LocalOpenContainer != this )
+			LocalOpenContainer.CloseLocalSessionImmediately();
+
+		_localRequestedContainer = this;
+		RequestOpen();
 	}
 
 	// --- Fermeture ---
@@ -692,6 +764,21 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 			return;
 		}
 
+		bool wasOpen = IsLocalSessionOpen;
+
+		// Filtre anti-réponse-retardée (voir _localRequestedContainer) : une toute nouvelle session
+		// (jamais ouverte localement pour CE conteneur) ne devient réelle que si ce conteneur est
+		// encore celui explicitement demandé par le joueur en dernier. Sinon, c'est la confirmation
+		// tardive d'un choix déjà abandonné (deux ouvertures rapprochées sur des conteneurs
+		// différents, réponses reçues dans un ordre non garanti) — aucun état local n'est modifié,
+		// le host est simplement notifié de fermer cette session qui ne sera jamais affichée.
+		if ( !wasOpen && _localRequestedContainer != this )
+		{
+			Log.Info( $"[WorldContainer][Snapshot][Superseded] '{GameObject.Name}' : snapshot d'ouverture reçu, mais plus le conteneur demandé localement — fermeture immédiate, aucun état local modifié." );
+			RequestClose();
+			return;
+		}
+
 		LocalRevision = revision;
 		LocalWidth = width;
 		LocalHeight = height;
@@ -700,6 +787,22 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 		LocalInvalidationReason = "";
 
 		Log.Info( $"[WorldContainer][Snapshot][Receive] '{GameObject.Name}' : revision={LocalRevision}, entries={LocalEntries.Count}, dims={LocalWidth}x{LocalHeight}." );
+
+		// Transition fermé -> ouvert uniquement : une resynchronisation (déjà ouvert) ne doit pas
+		// re-déclencher l'événement d'ouverture pour une future UI qui y réagirait en l'ouvrant à
+		// nouveau. Voir LocalOpenContainer.
+		if ( !wasOpen )
+		{
+			LocalOpenContainer = this;
+			LocalContainerOpened?.Invoke( this );
+
+			// Intention consommée : _localRequestedContainer ne représente qu'une demande EN
+			// ATTENTE (voir sa doc), jamais une session ouverte — la nettoyer ici sépare clairement
+			// les deux états et évite qu'une valeur périmée ("A" toujours marqué comme demandé
+			// après avoir été accepté puis fermé par un tout autre chemin) ne fasse
+			// accidentellement passer un futur snapshot tardif de A comme "encore demandé".
+			ClearLocalRequestedContainerIfSelf();
+		}
 	}
 
 	/// <summary>Invalidation ciblée à un seul viewer — fermeture, échec de revalidation lors d'une resync.</summary>
@@ -717,14 +820,86 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 	[Rpc.Broadcast]
 	public void ReceiveInvalidate( string reason )
 	{
+		ApplyLocalInvalidate( reason ?? "" );
+	}
+
+	/// <summary>
+	/// Effet local de fermeture, factorisé entre <see cref="ReceiveInvalidate"/> (déclenché par le
+	/// host, réseau) et <see cref="CloseLocalSessionImmediately"/> (déclenché localement, sans
+	/// attendre le réseau) — les deux chemins doivent vider le cache local et notifier
+	/// <see cref="LocalContainerClosed"/> exactement de la même façon.
+	/// </summary>
+	void ApplyLocalInvalidate( string reason )
+	{
 		LocalEntries = Array.Empty<WorldContainerSnapshotEntry>();
 		LocalRevision = -1;
 		LocalWidth = 0;
 		LocalHeight = 0;
 		IsLocalSessionOpen = false;
-		LocalInvalidationReason = reason ?? "";
+		LocalInvalidationReason = reason;
 
 		Log.Info( $"[WorldContainer][Invalidate] '{GameObject.Name}' : session invalidée ({LocalInvalidationReason}), cache local vidé." );
+
+		ClearLocalOpenContainerIfSelf();
+
+		// Filet de sécurité : une intention est normalement déjà consommée par ReceiveSnapshot avant
+		// toute invalidation normale ; nettoyée ici aussi pour rester correcte si ce conteneur est
+		// invalidé/fermé avant d'avoir jamais été confirmé.
+		ClearLocalRequestedContainerIfSelf();
+	}
+
+	/// <summary>
+	/// Ferme la session locale de CE conteneur immédiatement, sans attendre la confirmation réseau du
+	/// host — même rationale que la fermeture volontaire déjà documentée (section 14 de
+	/// WORLD_CONTAINER_ARCHITECTURE.md : « le client n'a pas besoin d'attendre une confirmation
+	/// réseau pour son propre affichage »). Utilisée uniquement quand le joueur local abandonne CE
+	/// conteneur au profit d'un autre (voir <see cref="RequestLocalOpen"/>) : garantit que
+	/// <see cref="LocalContainerClosed"/> est émis de façon déterministe AVANT que le nouveau
+	/// conteneur ne devienne actif, quel que soit l'ordre d'arrivée réseau des RPC. Notifie quand
+	/// même le host (<see cref="RequestClose"/>, idempotent) pour un retrait réel de la liste de
+	/// viewers — sans cet appel, ce conteneur resterait viewer côté host indéfiniment alors qu'aucun
+	/// client local ne l'affiche plus (fuite de session, pas seulement un affichage obsolète).
+	/// No-op si aucune session locale n'est actuellement ouverte pour ce conteneur.
+	/// </summary>
+	public void CloseLocalSessionImmediately()
+	{
+		if ( !IsLocalSessionOpen )
+			return;
+
+		ApplyLocalInvalidate( "superseded" );
+		RequestClose();
+	}
+
+	/// <summary>
+	/// Nettoyage local si ce conteneur disparaît (déconnexion, destruction de scène) alors qu'il
+	/// était <see cref="LocalOpenContainer"/> et/ou <see cref="_localRequestedContainer"/> — évite
+	/// qu'une future UI garde une référence vers un composant détruit, et qu'une intention obsolète
+	/// pointe vers un composant qui ne recevra plus jamais de snapshot. Même garde que
+	/// <see cref="Kodoku.Player.KodokuPlayerComponent.OnDestroy"/>.
+	/// </summary>
+	protected override void OnDestroy()
+	{
+		ClearLocalRequestedContainerIfSelf();
+		ClearLocalOpenContainerIfSelf();
+	}
+
+	void ClearLocalOpenContainerIfSelf()
+	{
+		if ( LocalOpenContainer != this )
+			return;
+
+		LocalOpenContainer = null;
+		LocalContainerClosed?.Invoke( this );
+	}
+
+	/// <summary>
+	/// Nettoie <see cref="_localRequestedContainer"/> uniquement s'il référence CE conteneur — jamais un
+	/// autre, pour ne jamais effacer l'intention d'un autre conteneur que le joueur vient de demander.
+	/// </summary>
+	void ClearLocalRequestedContainerIfSelf()
+	{
+		if ( _localRequestedContainer == this )
+			_localRequestedContainer = null;
 	}
 
 	// --- Déconnexion ---
