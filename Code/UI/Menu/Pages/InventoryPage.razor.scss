@@ -1,0 +1,144 @@
+InventoryPage {
+	display: flex;
+	width: 100%;
+	height: 100%;
+
+	.columns {
+		display: flex;
+		flex-direction: row;
+		width: 100%;
+		height: 100%;
+		gap: 16px;
+
+		// Trois colonnes de largeur strictement égale, y compris quand la colonne conteneur est vide
+		// (aucun conteneur ouvert) — flex: 1 garantit le même espace réservé qu'elle affiche du contenu
+		// ou rien du tout.
+		.column {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			min-width: 0;
+			overflow: hidden;
+		}
+	}
+
+	.column-title {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		gap: 8px;
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba( 255, 255, 255, 0.6 );
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+
+		.close-button {
+			position: absolute;
+			right: 0;
+			background-color: rgba( 255, 255, 255, 0.1 );
+			border: none;
+			border-radius: 4px;
+			color: white;
+			padding: 2px 8px;
+			font-size: 11px;
+			text-transform: none;
+			letter-spacing: normal;
+
+			&:hover {
+				background-color: rgba( 255, 255, 255, 0.2 );
+			}
+		}
+	}
+
+	.entries {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.entry {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 6px 10px;
+		background-color: rgba( 255, 255, 255, 0.05 );
+		border-radius: 4px;
+
+		&:hover {
+			background-color: rgba( 255, 255, 255, 0.1 );
+		}
+
+		.icon {
+			width: 32px;
+			height: 32px;
+			flex-shrink: 0;
+
+			Image {
+				width: 100%;
+				height: 100%;
+			}
+
+			.icon-fallback {
+				width: 100%;
+				height: 100%;
+				background-color: rgba( 255, 255, 255, 0.15 );
+				border-radius: 4px;
+			}
+		}
+
+		.info {
+			flex-grow: 1;
+			display: flex;
+			flex-direction: column;
+			min-width: 0;
+
+			.name {
+				font-size: 13px;
+
+				.qty {
+					color: rgba( 255, 255, 255, 0.5 );
+					font-size: 11px;
+				}
+
+				.empty {
+					color: rgba( 255, 255, 255, 0.4 );
+					font-style: italic;
+				}
+			}
+
+			.meta {
+				font-size: 10px;
+				color: rgba( 255, 255, 255, 0.4 );
+			}
+		}
+
+		.entry-actions {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			flex-shrink: 0;
+		}
+	}
+
+	.action-button {
+		flex-shrink: 0;
+		background-color: rgba( 255, 255, 255, 0.1 );
+		border: none;
+		border-radius: 4px;
+		color: white;
+		padding: 4px 10px;
+		font-size: 12px;
+
+		&:hover {
+			background-color: rgba( 255, 255, 255, 0.2 );
+		}
+
+		&.pending {
+			opacity: 0.5;
+		}
+	}
+}

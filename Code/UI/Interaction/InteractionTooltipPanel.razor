@@ -35,7 +35,7 @@
 	// Lu à chaque frame depuis PlayerController.Tooltips, jamais mis en cache durablement — cette
 	// liste est vidée et reconstruite par le moteur pendant UpdateLookAt (voir doc XML du moteur).
 	// Uniquement KodokuPlayerComponent.Local — jamais une recherche du premier PlayerController de
-	// la scène (même règle que GameHud/InventoryDebugPanel : ne pointe jamais vers un pawn distant).
+	// la scène (même règle que GameHud/InventoryPage : ne pointe jamais vers un pawn distant).
 	Component.IPressable.Tooltip? Selected => SelectFirstEnabled( KodokuPlayerComponent.Local?.PlayerController?.Tooltips );
 
 	// V1 : au maximum un tooltip affiché — le premier dont Enabled == true. Aucune tentative

@@ -1,0 +1,367 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Kodoku.Items;
+@using Kodoku.Player;
+@using Kodoku.Player.Inventory;
+@using Kodoku.World.Containers;
+@namespace Kodoku.UI
+@inherits Panel
+
+<root>
+	<div class="columns">
+		<div class="column inventory-column">
+			@if ( Inventory is not null )
+			{
+				<div class="column-title">Inventory — @Inventory.LocalItemCount item(s)</div>
+				<div class="entries">
+					@foreach ( var entry in Inventory.LocalEntries )
+					{
+						var definition = ResolveDefinition( entry.ItemId );
+						var instanceId = entry.InstanceId;
+
+						<div class="entry">
+							<div class="icon">
+								@if ( definition is not null && definition.Icon is not null )
+								{
+									<Image Texture="@definition.Icon"></Image>
+								}
+								else
+								{
+									<div class="icon-fallback"></div>
+								}
+							</div>
+							<div class="info">
+								<div class="name">@( definition?.DisplayName ?? entry.ItemId ) <span class="qty">x@( entry.Quantity )</span></div>
+								<div class="meta">(@entry.X,@entry.Y)@( entry.IsRotated ? " R" : "" )</div>
+							</div>
+							<div class="entry-actions">
+								<button class="action-button" onclick=@( () => RequestDrop( instanceId ) )>Drop</button>
+								@if ( definition is not null && definition.EquipmentSlot != EquipmentSlotType.None )
+								{
+									<button class="action-button" onclick=@( () => RequestEquip( instanceId, definition.EquipmentSlot ) )>Equip</button>
+								}
+								@if ( definition is not null && float.IsFinite( definition.ThirstRestoreAmount ) && definition.ThirstRestoreAmount > 0f )
+								{
+									<button class="action-button" onclick=@( () => RequestUse( instanceId ) )>Use</button>
+								}
+								@if ( _container.IsValid() && _container.IsLocalSessionOpen )
+								{
+									bool pending = _pendingStoreItemIds.Contains( instanceId );
+									<button class="action-button @( pending ? "pending" : "" )" onclick=@( () => OnPlayerItemClicked( instanceId ) )>Store</button>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			}
+			else
+			{
+				<div class="page-placeholder">
+					<div class="page-title">Inventory</div>
+					<div class="page-description">Inventory not available yet.</div>
+				</div>
+			}
+		</div>
+
+		<div class="column equipment-column">
+			@if ( Inventory is not null )
+			{
+				<div class="column-title">Equipment</div>
+				<div class="entries">
+					@foreach ( var slot in EquipmentSlots )
+					{
+						var equipped = Inventory.LocalEquipment.FirstOrDefault( e => e.Slot == slot );
+						bool hasItem = !string.IsNullOrEmpty( equipped.ItemId );
+						var definition = hasItem ? ResolveDefinition( equipped.ItemId ) : null;
+
+						<div class="entry">
+							<div class="icon">
+								@if ( definition is not null && definition.Icon is not null )
+								{
+									<Image Texture="@definition.Icon"></Image>
+								}
+								else
+								{
+									<div class="icon-fallback"></div>
+								}
+							</div>
+							<div class="info">
+								<div class="name">
+									@slot :
+									@if ( hasItem )
+									{
+										@( definition?.DisplayName ?? equipped.ItemId ) <span class="qty">x@( equipped.Quantity )</span>
+									}
+									else
+									{
+										<span class="empty">(empty)</span>
+									}
+								</div>
+							</div>
+							@if ( hasItem )
+							{
+								<button class="action-button" onclick=@( () => RequestUnequip( slot ) )>Unequip</button>
+							}
+						</div>
+					}
+				</div>
+			}
+			else
+			{
+				<div class="page-placeholder">
+					<div class="page-title">Equipment</div>
+					<div class="page-description">Equipment not available yet.</div>
+				</div>
+			}
+		</div>
+
+		<div class="column container-column">
+			@if ( _container.IsValid() && _container.IsLocalSessionOpen )
+			{
+				<div class="column-title">
+					@_container.GameObject.Name
+					<button class="close-button" onclick=@RequestCloseContainer>Close</button>
+				</div>
+				<div class="entries">
+					@foreach ( var entry in _container.LocalEntries )
+					{
+						var definition = ResolveDefinition( entry.ItemId );
+						var instanceId = entry.InstanceId;
+						bool pending = _pendingTakeItemIds.Contains( instanceId );
+
+						<div class="entry">
+							<div class="icon">
+								@if ( definition is not null && definition.Icon is not null )
+								{
+									<Image Texture="@definition.Icon"></Image>
+								}
+								else
+								{
+									<div class="icon-fallback"></div>
+								}
+							</div>
+							<div class="info">
+								<div class="name">@( definition?.DisplayName ?? entry.ItemId ) <span class="qty">x@( entry.Quantity )</span></div>
+								<div class="meta">(@entry.X,@entry.Y)@( entry.IsRotated ? " R" : "" )</div>
+							</div>
+							<div class="entry-actions">
+								<button class="action-button @( pending ? "pending" : "" )" onclick=@( () => OnContainerItemClicked( instanceId ) )>Take</button>
+							</div>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	</div>
+</root>
+
+@code
+{
+	// Lu à chaque frame (voir Tick ci-dessous), jamais mis en cache durablement — même choix que
+	// GameHud : fonctionne que le pawn local existe déjà, n'existe pas encore, ou
+	// soit remplacé (déconnexion/reconnexion). N'affiche jamais l'inventaire d'un proxy :
+	// KodokuPlayerComponent.Local ne désigne jamais un pawn distant.
+	PlayerInventoryComponent Inventory => KodokuPlayerComponent.Local?.PlayerInventory;
+
+	static readonly EquipmentSlotType[] EquipmentSlots = { EquipmentSlotType.Head, EquipmentSlotType.Body };
+
+	/// <summary>
+	/// Conteneur actuellement affiché dans la 3ème colonne — mis à jour uniquement depuis Tick() par
+	/// comparaison à <see cref="WorldContainerComponent.LocalOpenContainer"/>, jamais lu directement
+	/// ailleurs dans cette classe (même garantie que <see cref="Kodoku.UI.ContainerPanel"/>). Pas
+	/// d'abonnement aux événements <c>LocalContainerOpened</c>/<c>LocalContainerClosed</c> ici : cette
+	/// page est un Panel imbriqué recréé à chaque ouverture/fermeture de GameMenu (contrairement à
+	/// ContainerPanel, un PanelComponent à durée de vie stable) — le polling par Tick évite tout risque
+	/// de fuite d'abonnement ou de double-abonnement lié à ce cycle de vie plus court.
+	/// </summary>
+	WorldContainerComponent _container;
+
+	/// <summary>Anti-double-clic Take — voir ContainerPanel. Jamais utilisé comme preuve qu'un snapshot a déjà été appliqué.</summary>
+	readonly HashSet<string> _pendingTakeItemIds = new();
+
+	/// <summary>Anti-double-clic Store — même garantie que <see cref="_pendingTakeItemIds"/>.</summary>
+	readonly HashSet<string> _pendingStoreItemIds = new();
+
+	/// <summary>Dernière <see cref="WorldContainerComponent.LocalTransferResultSequence"/> déjà traitée pour <see cref="_container"/>.</summary>
+	int _lastSeenTransferResultSequence;
+
+	// Ce composant est un Panel imbriqué dans GameMenu (PanelComponent), pas un PanelComponent
+	// lui-même — il n'a donc pas de BuildHash()/OnUpdate() propres. Tick() est l'équivalent pour un
+	// Panel simple (« Called every frame », doc XML locale) : on calcule un hash de tout ce qui doit
+	// déclencher un nouveau rendu et on appelle StateHasChanged() uniquement s'il a changé, même
+	// principe que BuildHash ailleurs dans ce projet, juste porté manuellement ici.
+	int _lastObservedHash;
+
+	public override void Tick()
+	{
+		UpdateContainerState();
+
+		int hash = ComputeHash();
+		if ( hash == _lastObservedHash )
+			return;
+
+		_lastObservedHash = hash;
+		StateHasChanged();
+	}
+
+	void UpdateContainerState()
+	{
+		var current = WorldContainerComponent.LocalOpenContainer;
+		if ( _container != current )
+		{
+			_container = current;
+			_lastSeenTransferResultSequence = _container.IsValid() ? _container.LocalTransferResultSequence : 0;
+			ClearPendingState();
+		}
+
+		if ( !_container.IsValid() )
+		{
+			ClearPendingState();
+			return;
+		}
+
+		// Résultat de transfert le plus récent — retire immédiatement le pending correspondant en cas
+		// d'échec, même patron que ContainerPanel. En cas de succès, le pending n'est retiré que
+		// lorsque l'objet disparaît réellement du snapshot concerné (ci-dessous).
+		if ( _container.LocalTransferResultSequence != _lastSeenTransferResultSequence )
+		{
+			_lastSeenTransferResultSequence = _container.LocalTransferResultSequence;
+			var result = _container.LastTransferResult;
+
+			if ( !result.Success )
+			{
+				if ( result.Direction == WorldContainerTransferDirection.Take )
+					_pendingTakeItemIds.Remove( result.InstanceId );
+				else
+					_pendingStoreItemIds.Remove( result.InstanceId );
+			}
+		}
+
+		if ( _pendingTakeItemIds.Count > 0 )
+			_pendingTakeItemIds.RemoveWhere( id => !_container.LocalEntries.Any( e => e.InstanceId == id ) );
+
+		if ( _pendingStoreItemIds.Count > 0 )
+		{
+			var inventory = Inventory;
+			if ( inventory is null )
+				_pendingStoreItemIds.Clear();
+			else
+				_pendingStoreItemIds.RemoveWhere( id => !inventory.LocalEntries.Any( e => e.InstanceId == id ) );
+		}
+	}
+
+	void ClearPendingState()
+	{
+		_pendingTakeItemIds.Clear();
+		_pendingStoreItemIds.Clear();
+	}
+
+	int ComputeHash()
+	{
+		var hash = new HashCode();
+
+		var inventory = Inventory;
+		hash.Add( inventory );
+
+		if ( inventory is not null )
+		{
+			hash.Add( inventory.LocalRevision );
+
+			foreach ( var entry in inventory.LocalEntries )
+			{
+				hash.Add( entry.InstanceId );
+				hash.Add( entry.ItemId );
+				hash.Add( entry.Quantity );
+				hash.Add( entry.X );
+				hash.Add( entry.Y );
+				hash.Add( entry.IsRotated );
+			}
+
+			foreach ( var equipped in inventory.LocalEquipment )
+			{
+				hash.Add( equipped.Slot );
+				hash.Add( equipped.InstanceId );
+				hash.Add( equipped.ItemId );
+				hash.Add( equipped.Quantity );
+			}
+		}
+
+		bool containerOpen = _container.IsValid() && _container.IsLocalSessionOpen;
+		hash.Add( _container );
+		hash.Add( containerOpen );
+
+		if ( containerOpen )
+		{
+			hash.Add( _container.LocalRevision );
+
+			foreach ( var entry in _container.LocalEntries )
+			{
+				hash.Add( entry.InstanceId );
+				hash.Add( entry.ItemId );
+				hash.Add( entry.Quantity );
+				hash.Add( entry.X );
+				hash.Add( entry.Y );
+				hash.Add( entry.IsRotated );
+			}
+		}
+
+		foreach ( var id in _pendingTakeItemIds )
+			hash.Add( id );
+
+		foreach ( var id in _pendingStoreItemIds )
+			hash.Add( id );
+
+		return hash.ToHashCode();
+	}
+
+	// Résolution locale d'ItemDefinition depuis l'ItemId brut du snapshot — présentation uniquement
+	// (icône, nom affiché, quel bouton afficher), jamais une validation métier : le host revalide tout
+	// depuis Container/ItemDefinition canoniques. Même patron que ContainerPanel.
+	static ItemDefinition ResolveDefinition( string itemId )
+	{
+		if ( string.IsNullOrEmpty( itemId ) )
+			return null;
+
+		return ResourceLibrary.GetAll<ItemDefinition>().FirstOrDefault( d => d.ItemId == itemId );
+	}
+
+	// Ne transmet que l'InstanceId/le slot sélectionné dans le snapshot local — aucune donnée métier
+	// (définition, quantité, position) envoyée ; le host revalide tout. Mêmes points d'entrée déjà
+	// validés par test réel.
+	void RequestDrop( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemDrop?.RequestDrop( instanceId );
+
+	void RequestEquip( string instanceId, EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestEquip( instanceId, slot );
+
+	void RequestUse( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemUse?.RequestUse( instanceId );
+
+	void RequestUnequip( EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestUnequip( slot );
+
+	// Anti-double-clic : HashSet.Add retourne false si déjà pending — combine l'ignorance d'un second
+	// clic et l'enregistrement du pending en une seule opération atomique, même patron que ContainerPanel.
+	void OnContainerItemClicked( string instanceId )
+	{
+		if ( !_container.IsValid() )
+			return;
+
+		if ( !_pendingTakeItemIds.Add( instanceId ) )
+			return;
+
+		_container.RequestTakeItem( instanceId );
+	}
+
+	void OnPlayerItemClicked( string instanceId )
+	{
+		if ( !_container.IsValid() )
+			return;
+
+		if ( !_pendingStoreItemIds.Add( instanceId ) )
+			return;
+
+		_container.RequestStoreItem( instanceId );
+	}
+
+	void RequestCloseContainer() => _container?.CloseLocalSessionImmediately();
+}
