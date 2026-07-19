@@ -12,16 +12,24 @@
 6. Progression vers l'UI finale (étape 8).
 7. ~~**Spike réseau multi-viewer**~~ (étape 9) — **terminé et validé** par test runtime réel (host + deux clients, 2026-07-19) : `Rpc.FilterInclude` + `[Rpc.Broadcast]` confirmé pour la diffusion aux viewers, `Component.INetworkListener.OnDisconnected` confirmé pour le nettoyage à la déconnexion. Voir [../architecture/WORLD_CONTAINER_ARCHITECTURE.md](../architecture/WORLD_CONTAINER_ARCHITECTURE.md), section 7, [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md) et [ADR-0006](../decisions/ADR-0006-WORLD-CONTAINER-VIEWER-TRANSPORT.md).
 8. ~~**Noyau World Container Core**~~ (étape 9) — **terminé et validé** par test runtime réel (host + clients distants, matrice C0-A à C0-J, 2026-07-19) : `WorldContainerComponent` canonique, sessions/viewers multi-clients, snapshots filtrés, resynchronisation, invalidation, validation de distance, nettoyage à la déconnexion, rejet des snapshots obsolètes. Voir [docs/research/WORLD_CONTAINER_CORE_TESTS.md](../research/WORLD_CONTAINER_CORE_TESTS.md).
-9. **Whole-item transfers** (étape 9) — **prochaine étape réelle du projet**, non commencée :
-   - conteneur vers joueur ;
-   - joueur vers conteneur ;
-   - conservation du même `ItemInstance`/`InstanceId` (aucune fusion, aucune duplication — comportement déjà audité de `InventoryContainer.TryAddFirstFit`, voir [../architecture/WORLD_CONTAINER_ARCHITECTURE.md](../architecture/WORLD_CONTAINER_ARCHITECTURE.md), section 9) ;
-   - révision joueur +1, révision conteneur +1, chacune exactement une fois ;
-   - snapshots correspondants (joueur au propriétaire seul, conteneur à tous les viewers courants) ;
-   - aucune duplication ni perte, y compris en cas de concurrence (deux joueurs sur la même cible).
-   Interaction monde de production (`Component.IPressable`), prefab `Wooden_Crate` et UI finale restent après la validation des transferts — pas de raison connue de changer cet ordre.
-10. Scènes, zones et extraction (étape 11).
-11. Persistance et reconnexion (étape 12).
+9. ~~**Whole-item transfers**~~ (étape 9) — **terminé et validé** par test runtime réel (host + jusqu'à deux clients distants, plusieurs sessions, matrice T0-A à T0-O, 15/15 PASS, 2026-07-19) :
+   - conteneur vers joueur — fait ;
+   - joueur vers conteneur — fait ;
+   - conservation du même `ItemInstance`/`InstanceId` (aucune fusion, aucune duplication) — confirmé ;
+   - révision joueur +1, révision conteneur +1, chacune exactement une fois — confirmé ;
+   - snapshots correspondants (joueur au propriétaire seul, conteneur à tous les viewers courants) — confirmé ;
+   - aucune duplication ni perte, y compris en cas de concurrence (deux joueurs sur la même cible, T0-M) — confirmé.
+   Voir [docs/research/WORLD_CONTAINER_TRANSFER_TESTS.md](../research/WORLD_CONTAINER_TRANSFER_TESTS.md) pour le rapport complet et [../architecture/WORLD_CONTAINER_ARCHITECTURE.md](../architecture/WORLD_CONTAINER_ARCHITECTURE.md) pour la conception mise à jour.
+10. **Prochaine étape réelle du projet, non commencée** — ordre recommandé, pas de raison connue de le changer :
+    1. interaction monde de production (`Component.IPressable` sur `WorldContainerComponent`) ;
+    2. prefab `Wooden_Crate` de production ;
+    3. UI de production ;
+    4. fermeture/invalidation si le conteneur disparaît pendant la consultation ;
+    5. `StableContainerId` ;
+    6. persistance ;
+    7. permissions avancées.
+11. Scènes, zones et extraction (étape 11).
+12. Persistance et reconnexion (étape 12).
 
 **Le transfert direct d'item entre deux joueurs n'est pas prévu** — décision de gameplay explicite du 2026-07-16 : l'échange entre joueurs passe par le système déjà validé (joueur A dépose l'item, joueur B le ramasse), pas par un transfert direct inventaire-à-inventaire. Cette décision remplace l'ordre de priorité précédent (2026-07-15), qui plaçait un tel transfert entre la robustesse du drop et les conteneurs du monde — voir [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) et étape 8 ci-dessous.
 
@@ -103,8 +111,8 @@
 - **Conteneurs du monde (regroupement de plusieurs items déposés dans une seule boîte, ex. `Cardboard_box`) : conception terminée, transport réseau multi-viewer validé, conteneur lui-même non implémenté.** La condition d'entrée posée le 2026-07-15 (les transactions atomiques d'équipement/déséquipement et la synchronisation de l'inventaire propriétaire doivent être validées avant d'introduire un conteneur public partagé, étape 8) est remplie depuis le 2026-07-18. Une mission de conception dédiée (branche `design/world-containers`, mergée le 2026-07-18) a produit une architecture complète — voir [../architecture/WORLD_CONTAINER_ARCHITECTURE.md](../architecture/WORLD_CONTAINER_ARCHITECTURE.md) : `WorldContainerComponent` autonome (pas de réutilisation de `PlayerInventoryComponent`), transferts atomiques par ordre des mutations (sans rollback dédié, même patron que l'équipement — comportement vérifié par audit direct de `InventoryContainer.TryAddFirstFit`, pas supposé), matrice de tests A à R préparée mais non exécutée.
   - **Jalon 1, spike réseau multi-viewer : terminé et validé** par test runtime réel (host + deux clients distants, branche `spike/world-container-multiviewer-rpc`, 2026-07-19). Sept scénarios PASS (aucun viewer, un viewer, deux viewers, invalidation ciblée puis retrait, déconnexion d'un viewer, late join, réouverture), deux non exécutés (ajout dupliqué, retrait idempotent — limite de l'outil debug utilisé, non bloquant). Voir [docs/research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md](../research/WORLD_CONTAINER_MULTIVIEWER_SPIKE.md) et [ADR-0006](../decisions/ADR-0006-WORLD-CONTAINER-VIEWER-TRANSPORT.md).
   - **Jalon 2, noyau `WorldContainerComponent` : terminé et validé** par test runtime réel (host + clients distants, branche `feature/world-container-core`, matrice C0-A à C0-J, 2026-07-19). Composant canonique, sessions/viewers multi-clients, snapshots filtrés, resynchronisation, invalidation, validation de distance, nettoyage à la déconnexion, rejet des snapshots obsolètes — tous validés. Voir [docs/research/WORLD_CONTAINER_CORE_TESTS.md](../research/WORLD_CONTAINER_CORE_TESTS.md).
-  - **Jalon 3, whole-item transfers : prochaine étape réelle du projet, non commencée.** Transfert conteneur ↔ joueur, aucun des deux sens n'est implémenté ni validé à ce jour — voir « Nouvelle prochaine priorité » en tête de ce document.
-  - Voir [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) pour le détail des questions encore ouvertes. Cette étape 9 n'est donc **pas** terminée dans son ensemble malgré son statut « fait pour son périmètre » : le ramassage/dépôt individuel est validé pour son périmètre core, le noyau des conteneurs du monde (sessions/consultation multi-viewer) est désormais **implémenté et validé**, mais **les transferts d'item restent non implémentés**.
+  - **Jalon 3, whole-item transfers : terminé et validé** par test runtime réel (host + jusqu'à deux clients distants, plusieurs sessions, matrice T0-A à T0-O, 15/15 PASS, 2026-07-19). Transfert conteneur ↔ joueur, les deux sens implémentés et validés, y compris la collision entre deux appelants distincts sur le même item. Voir [docs/research/WORLD_CONTAINER_TRANSFER_TESTS.md](../research/WORLD_CONTAINER_TRANSFER_TESTS.md).
+  - Voir [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) pour le détail des questions encore ouvertes. Cette étape 9 est désormais **fait pour son périmètre élargi** : ramassage/dépôt individuel, noyau des conteneurs du monde (sessions/consultation multi-viewer) et transferts d'item sont tous implémentés et validés. Restent non commencés : interaction monde de production (`Component.IPressable`), prefab `Wooden_Crate`, UI de production, persistance — voir « Ordre de priorité actuel » en tête de ce document.
 
 ## 10. IA et combat
 

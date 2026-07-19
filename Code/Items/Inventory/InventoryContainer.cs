@@ -109,8 +109,44 @@ public sealed class InventoryContainer
 	/// <summary>
 	/// Parcours déterministe : orientation normale d'abord, ligne par ligne, gauche à droite,
 	/// haut en bas ; orientation tournée ensuite si autorisée et nécessaire. Jamais d'aléatoire.
+	/// Partage sa sélection de candidat avec <see cref="TryFindFirstFit"/> via
+	/// <see cref="FindFirstFitCandidate"/> — seule cette méthode-ci mute réellement le conteneur
+	/// (<see cref="AddPlacement"/>), <see cref="TryFindFirstFit"/> ne fait jamais cette dernière étape.
 	/// </summary>
 	public InventoryOperationResult TryAddFirstFit( ItemInstance item, bool allowRotation = true )
+	{
+		var result = FindFirstFitCandidate( item, allowRotation );
+		if ( !result.Success )
+			return result;
+
+		AddPlacement( result.Placement );
+		return result;
+	}
+
+	/// <summary>
+	/// Préflight pur, jamais mutant : identique à <see cref="TryAddFirstFit"/> (même validation,
+	/// même refus <see cref="InventoryFailureReason.AlreadyContained"/>, même ordre de scan —
+	/// normale d'abord, tournée ensuite si autorisée et supportée), mais ne pose jamais le
+	/// candidat trouvé dans le conteneur. Le placement candidat (position, rotation) reste
+	/// disponible via <see cref="InventoryOperationResult.Placement"/> en cas de succès — pas de
+	/// paramètres <c>out</c> séparés, cette information existe déjà là. Sert de première étape à
+	/// une future transaction à deux conteneurs (transfert) qui doit savoir si la destination peut
+	/// accepter l'item avant de retirer quoi que ce soit de la source — voir
+	/// docs/architecture/WORLD_CONTAINER_ARCHITECTURE.md.
+	/// </summary>
+	public InventoryOperationResult TryFindFirstFit( ItemInstance item, bool allowRotation = true )
+	{
+		return FindFirstFitCandidate( item, allowRotation );
+	}
+
+	/// <summary>
+	/// Sélection pure partagée par <see cref="TryAddFirstFit"/> et <see cref="TryFindFirstFit"/> —
+	/// unique source de vérité pour « quel candidat de placement first-fit pour cet item, sous ces
+	/// règles de rotation ». Ne mute jamais le conteneur : uniquement <see cref="ValidateItem"/>,
+	/// le refus de doublon d'InstanceId, et <see cref="FindFirstFit"/> (elle-même pure, fondée sur
+	/// <see cref="CanPlace"/>).
+	/// </summary>
+	InventoryOperationResult FindFirstFitCandidate( ItemInstance item, bool allowRotation )
 	{
 		var itemFailure = ValidateItem( item );
 		if ( itemFailure != InventoryFailureReason.None )
@@ -121,19 +157,13 @@ public sealed class InventoryContainer
 
 		var fit = FindFirstFit( item, rotated: false );
 		if ( fit.Success )
-		{
-			AddPlacement( fit.Placement );
 			return fit;
-		}
 
 		if ( allowRotation && item.Definition.CanRotate )
 		{
 			fit = FindFirstFit( item, rotated: true );
 			if ( fit.Success )
-			{
-				AddPlacement( fit.Placement );
 				return fit;
-			}
 		}
 
 		return InventoryOperationResult.Fail( InventoryFailureReason.NoAvailableSpace );
