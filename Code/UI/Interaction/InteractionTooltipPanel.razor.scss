@@ -1,0 +1,41 @@
+InteractionTooltipPanel {
+	position: absolute;
+	bottom: 90px;
+	left: 50%;
+	transform: translateX( -50% );
+	pointer-events: none;
+
+	.tooltip {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 16px;
+		background-color: rgba( 18, 18, 22, 0.85 );
+		border: 1px solid rgba( 255, 255, 255, 0.08 );
+		border-radius: 6px;
+		font-family: Poppins, sans-serif;
+		color: white;
+
+		.icon {
+			font-family: "Material Icons";
+			font-size: 22px;
+			color: white;
+		}
+
+		.text {
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+
+			.title {
+				font-size: 15px;
+				font-weight: 600;
+			}
+
+			.description {
+				font-size: 12px;
+				color: rgba( 255, 255, 255, 0.6 );
+			}
+		}
+	}
+}

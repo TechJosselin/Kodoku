@@ -1,0 +1,79 @@
+@using System;
+@using System.Collections.Generic;
+@using Sandbox;
+@using Sandbox.UI;
+@using Kodoku.Player;
+@namespace Kodoku.UI
+@inherits PanelComponent
+
+<root>
+	@{
+		var selected = Selected;
+	}
+	@if ( selected is not null )
+	{
+		var tooltip = selected.Value;
+
+		<div class="tooltip">
+			@if ( !string.IsNullOrEmpty( tooltip.Icon ) )
+			{
+				<i class="icon">@tooltip.Icon</i>
+			}
+			<div class="text">
+				<div class="title">@tooltip.Title</div>
+				@if ( !string.IsNullOrEmpty( tooltip.Description ) )
+				{
+					<div class="description">@tooltip.Description</div>
+				}
+			</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	// Lu à chaque frame depuis PlayerController.Tooltips, jamais mis en cache durablement — cette
+	// liste est vidée et reconstruite par le moteur pendant UpdateLookAt (voir doc XML du moteur).
+	// Uniquement KodokuPlayerComponent.Local — jamais une recherche du premier PlayerController de
+	// la scène (même règle que GameHud/InventoryDebugPanel : ne pointe jamais vers un pawn distant).
+	Component.IPressable.Tooltip? Selected => SelectFirstEnabled( KodokuPlayerComponent.Local?.PlayerController?.Tooltips );
+
+	// V1 : au maximum un tooltip affiché — le premier dont Enabled == true. Aucune tentative
+	// d'afficher plusieurs tooltips simultanément ni de trier par autre critère.
+	static Component.IPressable.Tooltip? SelectFirstEnabled( List<Component.IPressable.Tooltip> tooltips )
+	{
+		if ( tooltips is null )
+			return null;
+
+		foreach ( var tooltip in tooltips )
+		{
+			if ( tooltip.Enabled )
+				return tooltip;
+		}
+
+		return null;
+	}
+
+	// Inclut l'identité du joueur local et du PlayerController (pas seulement leurs valeurs) pour
+	// les mêmes raisons que GameHud.BuildHash : un changement de pawn local doit toujours
+	// reconstruire le panneau, même si le tooltip sélectionné coïnciderait par hasard avec le
+	// précédent. Le nombre total de tooltips est inclus séparément de Title/Icon/Description/
+	// Enabled/Pressable du tooltip sélectionné, pour détecter une transition liste vide <-> non
+	// vide même si aucun tooltip n'est actuellement Enabled.
+	protected override int BuildHash()
+	{
+		var local = KodokuPlayerComponent.Local;
+		var controller = local?.PlayerController;
+		var tooltips = controller?.Tooltips;
+
+		if ( tooltips is null || tooltips.Count == 0 )
+			return HashCode.Combine( "no-tooltip", local, controller );
+
+		var selected = SelectFirstEnabled( tooltips );
+		if ( selected is null )
+			return HashCode.Combine( "no-enabled-tooltip", local, controller, tooltips.Count );
+
+		var tooltip = selected.Value;
+		return HashCode.Combine( local, controller, tooltips.Count, tooltip.Title, tooltip.Icon, tooltip.Description, tooltip.Enabled, tooltip.Pressable );
+	}
+}
