@@ -3,6 +3,7 @@ using System.Linq;
 using Kodoku.Items;
 using Kodoku.Items.Inventory;
 using Kodoku.Player;
+using Kodoku.Player.Inventory;
 
 namespace Kodoku.World.Containers;
 
@@ -104,6 +105,20 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 
 	/// <summary>Raison de la dernière invalidation reçue (vide si aucune) — présentation uniquement.</summary>
 	public string LocalInvalidationReason { get; private set; } = "";
+
+	/// <summary>
+	/// Cache local non autoritaire du dernier résultat de transfert reçu (voir
+	/// <see cref="ReceiveTransferResult"/>) — accusé de traitement pour la présentation/les tests,
+	/// jamais consulté par le host pour autoriser quoi que ce soit, jamais <c>[Sync]</c> (transmis
+	/// une fois par <c>[Rpc.Broadcast]</c> filtré, pas un état répliqué continu). Ne contient aucune
+	/// donnée d'inventaire — voir <see cref="WorldContainerTransferResult"/>.
+	/// </summary>
+	public bool HasLocalTransferResult { get; private set; }
+
+	public WorldContainerTransferResult LastTransferResult { get; private set; }
+
+	/// <summary>Incrémenté à chaque <see cref="ReceiveTransferResult"/> reçu — permet à l'UI/aux tests de détecter un nouveau résultat même si son contenu est identique au précédent.</summary>
+	public int LocalTransferResultSequence { get; private set; }
 
 	protected override void OnStart()
 	{
@@ -281,6 +296,312 @@ public sealed class WorldContainerComponent : Component, Component.INetworkListe
 
 		HostRevision++;
 		SendSnapshotToAllViewers();
+	}
+
+	// --- Transferts whole-item ---
+
+	/// <summary>
+	/// Point d'entrée réseau unique du transfert conteneur -> joueur ("Take"). <c>[Rpc.Host]</c>
+	/// résout <see cref="Rpc.Caller"/> — le conteneur cible est implicite (ce <c>GameObject</c>),
+	/// même patron que <see cref="RequestOpen"/>/<see cref="RequestClose"/>/<see cref="RequestSnapshot"/>.
+	/// Ne fait confiance à aucune autre donnée du client que l'<c>InstanceId</c> choisi dans son
+	/// propre snapshot local (<see cref="LocalEntries"/>) — jamais une définition, une quantité, une
+	/// position. Le résultat ciblé (<see cref="SendTransferResultTo"/>) est envoyé exactement une
+	/// fois, que la transaction réussisse ou échoue — voir <see cref="TryTakeItemAuthoritative"/>
+	/// pour le détail des logs de succès/échec.
+	/// </summary>
+	[Rpc.Host]
+	public void RequestTakeItem( string instanceId )
+	{
+		var caller = Rpc.Caller;
+		var result = TryTakeItemAuthoritative( caller, instanceId );
+
+		if ( !result.Success )
+			Log.Warning( $"[WorldContainerTransfer][Take][Fail] '{caller?.DisplayName}' -> '{GameObject.Name}' : instance={instanceId}, reason={result.FailureReason}." );
+
+		if ( caller is null )
+		{
+			Log.Warning( $"[WorldContainerTransfer][Result][Send] Appelant nul, impossible de cibler le résultat de Take sur '{GameObject.Name}' — log host uniquement." );
+			return;
+		}
+
+		SendTransferResultTo( caller, result );
+	}
+
+	/// <summary>
+	/// Transaction métier complète du "Take", indépendante de tout transport réseau — même esprit
+	/// que <see cref="TryOpenAuthoritative"/>/<see cref="Kodoku.Items.Interaction.WorldItemPickupComponent.TryPickupAuthoritative"/>.
+	/// Ordre de validation strict, voir docs/research/WORLD_CONTAINER_TRANSFER_TESTS.md : autorité
+	/// host, appelant/pawn/<c>PlayerController</c>, <see cref="PlayerInventoryComponent"/> et son
+	/// <see cref="PlayerInventoryComponent.Container"/>, <see cref="Container"/> de ce conteneur,
+	/// appartenance aux <see cref="_viewers"/>, distance (<see cref="IsWithinRange"/> — un échec ici
+	/// invalide et retire le viewer, même patron que <see cref="TryResyncAuthoritative"/>) — puis
+	/// seulement alors l'<c>InstanceId</c> est parsé : un non-viewer transmettant également un
+	/// identifiant invalide reçoit donc <see cref="WorldContainerTransferFailureReason.NotViewer"/>,
+	/// jamais <see cref="WorldContainerTransferFailureReason.InvalidInstanceId"/>. La mutation
+	/// elle-même (retrait du conteneur monde, ajout dans l'inventaire joueur) passe entièrement par
+	/// <see cref="TryTransferItem"/>, partagée avec <see cref="TryStoreItemAuthoritative"/>. Ne
+	/// notifie (<see cref="NotifyContentMutated"/> puis <see cref="PlayerInventoryComponent.NotifyMutated"/>,
+	/// dans cet ordre précis) qu'après un succès complet — jamais sur un chemin d'échec, quel qu'il
+	/// soit.
+	/// </summary>
+	public WorldContainerTransferResult TryTakeItemAuthoritative( Connection requester, string instanceId )
+	{
+		const WorldContainerTransferDirection direction = WorldContainerTransferDirection.Take;
+
+		if ( !Networking.IsHost )
+		{
+			Log.Error( $"[WorldContainerTransfer][InternalError] TryTakeItemAuthoritative() exécuté hors du host pour '{GameObject.Name}'." );
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InternalError );
+		}
+
+		if ( requester is null )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidCaller );
+
+		var pawn = KodokuPlayerComponent.FindByConnection( Scene, requester );
+		if ( pawn is null || pawn.PlayerController is null )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidCaller );
+
+		var inventory = pawn.Components.Get<PlayerInventoryComponent>();
+		if ( inventory is null || inventory.Container is null )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidCaller );
+
+		if ( Container is null )
+		{
+			Log.Error( $"[WorldContainerTransfer][InternalError] Container absent sur '{GameObject.Name}' pour un host pourtant valide." );
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InternalError );
+		}
+
+		if ( !_viewers.Contains( requester ) )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.NotViewer );
+
+		if ( !IsWithinRange( pawn ) )
+		{
+			SendInvalidationTo( requester, "out of range" );
+			_viewers.Remove( requester );
+			Log.Info( $"[WorldContainer][ViewerRemoved] '{requester?.DisplayName}' -> '{GameObject.Name}' (out of range on transfer). Total={_viewers.Count}." );
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.OutOfRange );
+		}
+
+		if ( !Guid.TryParse( instanceId, out var parsedId ) || parsedId == Guid.Empty )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidInstanceId );
+
+		int worldRevisionBefore = HostRevision;
+		int playerRevisionBefore = inventory.HostRevision;
+
+		var failure = TryTransferItem( Container, inventory.Container, parsedId );
+		if ( failure != WorldContainerTransferFailureReason.None )
+			return WorldContainerTransferResult.Fail( direction, instanceId, failure );
+
+		// Succès complet confirmé — notifier dans l'ordre source (conteneur) puis destination
+		// (joueur), jamais l'inverse pour ce sens (voir docs/research/WORLD_CONTAINER_TRANSFER_TESTS.md).
+		NotifyContentMutated();
+		inventory.NotifyMutated();
+
+		Log.Info( $"[WorldContainerTransfer][Take][Success] '{requester?.DisplayName}' : instance={parsedId}, " +
+			$"conteneurRevision {worldRevisionBefore}->{HostRevision}, joueurRevision {playerRevisionBefore}->{inventory.HostRevision}." );
+
+		return WorldContainerTransferResult.Ok( direction, instanceId );
+	}
+
+	/// <summary>
+	/// Point d'entrée réseau unique du transfert joueur -> conteneur ("Store"). Même patron que
+	/// <see cref="RequestTakeItem"/>, direction inversée.
+	/// </summary>
+	[Rpc.Host]
+	public void RequestStoreItem( string instanceId )
+	{
+		var caller = Rpc.Caller;
+		var result = TryStoreItemAuthoritative( caller, instanceId );
+
+		if ( !result.Success )
+			Log.Warning( $"[WorldContainerTransfer][Store][Fail] '{caller?.DisplayName}' -> '{GameObject.Name}' : instance={instanceId}, reason={result.FailureReason}." );
+
+		if ( caller is null )
+		{
+			Log.Warning( $"[WorldContainerTransfer][Result][Send] Appelant nul, impossible de cibler le résultat de Store sur '{GameObject.Name}' — log host uniquement." );
+			return;
+		}
+
+		SendTransferResultTo( caller, result );
+	}
+
+	/// <summary>
+	/// Transaction métier complète du "Store" — même ordre de validation exact que
+	/// <see cref="TryTakeItemAuthoritative"/>, source et destination inversées. Notifie dans l'ordre
+	/// inverse de Take : source (joueur, <see cref="PlayerInventoryComponent.NotifyMutated"/>) puis
+	/// destination (conteneur, <see cref="NotifyContentMutated"/>).
+	/// </summary>
+	public WorldContainerTransferResult TryStoreItemAuthoritative( Connection requester, string instanceId )
+	{
+		const WorldContainerTransferDirection direction = WorldContainerTransferDirection.Store;
+
+		if ( !Networking.IsHost )
+		{
+			Log.Error( $"[WorldContainerTransfer][InternalError] TryStoreItemAuthoritative() exécuté hors du host pour '{GameObject.Name}'." );
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InternalError );
+		}
+
+		if ( requester is null )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidCaller );
+
+		var pawn = KodokuPlayerComponent.FindByConnection( Scene, requester );
+		if ( pawn is null || pawn.PlayerController is null )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidCaller );
+
+		var inventory = pawn.Components.Get<PlayerInventoryComponent>();
+		if ( inventory is null || inventory.Container is null )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidCaller );
+
+		if ( Container is null )
+		{
+			Log.Error( $"[WorldContainerTransfer][InternalError] Container absent sur '{GameObject.Name}' pour un host pourtant valide." );
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InternalError );
+		}
+
+		if ( !_viewers.Contains( requester ) )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.NotViewer );
+
+		if ( !IsWithinRange( pawn ) )
+		{
+			SendInvalidationTo( requester, "out of range" );
+			_viewers.Remove( requester );
+			Log.Info( $"[WorldContainer][ViewerRemoved] '{requester?.DisplayName}' -> '{GameObject.Name}' (out of range on transfer). Total={_viewers.Count}." );
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.OutOfRange );
+		}
+
+		if ( !Guid.TryParse( instanceId, out var parsedId ) || parsedId == Guid.Empty )
+			return WorldContainerTransferResult.Fail( direction, instanceId, WorldContainerTransferFailureReason.InvalidInstanceId );
+
+		int playerRevisionBefore = inventory.HostRevision;
+		int worldRevisionBefore = HostRevision;
+
+		var failure = TryTransferItem( inventory.Container, Container, parsedId );
+		if ( failure != WorldContainerTransferFailureReason.None )
+			return WorldContainerTransferResult.Fail( direction, instanceId, failure );
+
+		// Succès complet confirmé — notifier dans l'ordre source (joueur) puis destination
+		// (conteneur), symétrique de Take.
+		inventory.NotifyMutated();
+		NotifyContentMutated();
+
+		Log.Info( $"[WorldContainerTransfer][Store][Success] '{requester?.DisplayName}' : instance={parsedId}, " +
+			$"joueurRevision {playerRevisionBefore}->{inventory.HostRevision}, conteneurRevision {worldRevisionBefore}->{HostRevision}." );
+
+		return WorldContainerTransferResult.Ok( direction, instanceId );
+	}
+
+	/// <summary>
+	/// Algorithme partagé des deux sens de transfert — même code exact pour Take et Store, seuls
+	/// <paramref name="source"/>/<paramref name="destination"/> sont inversés par l'appelant. Ordre :
+	/// retrouver le placement source, préflight pur de la destination
+	/// (<see cref="InventoryContainer.TryFindFirstFit"/>, aucune mutation en cas d'échec), puis
+	/// seulement alors <see cref="InventoryContainer.TryRemove"/> sur la source suivi de
+	/// <see cref="InventoryContainer.TryAdd"/> sur la destination à la position exacte planifiée par
+	/// le préflight — jamais un second scan first-fit après le retrait. Ne notifie jamais, ne
+	/// journalise jamais le succès : ces deux responsabilités restent dans
+	/// <see cref="TryTakeItemAuthoritative"/>/<see cref="TryStoreItemAuthoritative"/>, qui
+	/// connaissent le contexte complet (appelant, direction, révisions avant/après) nécessaire aux
+	/// logs de production.
+	/// </summary>
+	WorldContainerTransferFailureReason TryTransferItem( InventoryContainer source, InventoryContainer destination, Guid instanceId )
+	{
+		var placement = source.GetPlacement( instanceId );
+		if ( placement is null )
+			return WorldContainerTransferFailureReason.ItemNotFound;
+
+		var item = placement.Item;
+		int originalX = placement.X;
+		int originalY = placement.Y;
+		bool originalRotated = placement.IsRotated;
+
+		// Préflight pur : aucune mutation tant que la destination n'a pas explicitement confirmé
+		// pouvoir accepter cet item — voir InventoryContainer.TryFindFirstFit.
+		var preflight = destination.TryFindFirstFit( item );
+		if ( !preflight.Success )
+		{
+			// NoAvailableSpace -> DestinationNoSpace (cas normal, grille pleine ou item trop grand).
+			// AlreadyContained ou toute autre raison -> InternalError : une ItemInstance ne vit
+			// légitimement que dans un seul InventoryContainer à la fois, atteindre ce cas
+			// signifierait un état canonique déjà incohérent avant même ce transfert.
+			return preflight.FailureReason == InventoryFailureReason.NoAvailableSpace
+				? WorldContainerTransferFailureReason.DestinationNoSpace
+				: WorldContainerTransferFailureReason.InternalError;
+		}
+
+		var candidate = preflight.Placement;
+
+		// Retrait de la source — seulement maintenant que la destination a confirmé pouvoir
+		// accepter. Même référence ItemInstance, même InstanceId, garantis par construction
+		// (TryRemove ne retourne que le placement déjà résolu par instanceId ci-dessus).
+		var removeResult = source.TryRemove( instanceId, out var removedItem );
+		if ( !removeResult.Success || removedItem != item )
+		{
+			Log.Error( $"[WorldContainerTransfer][InternalError] TryRemove a échoué après validation complète pour instance={instanceId} — état canonique potentiellement incohérent." );
+			return WorldContainerTransferFailureReason.InternalError;
+		}
+
+		// Ajout planifié : même item, même position que celle validée par le préflight, aucun
+		// second scan first-fit. Devrait toujours réussir — rien ne mute la destination entre le
+		// préflight et cet appel, dans le même traitement host synchrone (voir
+		// InventoryContainer.TryFindFirstFit et docs/research/WORLD_CONTAINER_TRANSFER_TESTS.md).
+		var addResult = destination.TryAdd( item, candidate.X, candidate.Y, candidate.IsRotated );
+		if ( addResult.Success )
+			return WorldContainerTransferFailureReason.None;
+
+		// Anomalie : le préflight avait pourtant validé ce candidat. Filet de sécurité, jamais le
+		// chemin normal — ne pas provoquer artificiellement ce cas en production.
+		Log.Error( $"[WorldContainerTransfer][UnexpectedPlannedAddFailure] instance={instanceId} : l'ajout planifié à " +
+			$"({candidate.X},{candidate.Y}) rotated={candidate.IsRotated} a échoué malgré un préflight réussi ({addResult.FailureReason})." );
+
+		var rollback = source.TryAdd( item, originalX, originalY, originalRotated );
+		if ( !rollback.Success )
+		{
+			Log.Error( $"[WorldContainerTransfer][CriticalRollbackFailure] instance={instanceId} n'a pas pu être réinsérée à " +
+				$"({originalX},{originalY}) rotated={originalRotated} après échec de l'ajout planifié ({addResult.FailureReason}) : " +
+				$"{rollback.FailureReason}. Item perdu de l'état canonique — aucune nouvelle instance n'est créée pour compenser, " +
+				$"une intervention manuelle peut être nécessaire." );
+			return WorldContainerTransferFailureReason.RollbackFailed;
+		}
+
+		return WorldContainerTransferFailureReason.InternalError;
+	}
+
+	/// <summary>
+	/// Envoie le résultat ciblé d'un transfert au seul appelant à l'origine de la requête — jamais
+	/// aux autres viewers, jamais via <c>[Rpc.Owner]</c> (ce conteneur n'a pas de <c>Network Owner</c>
+	/// joueur, ADR-0006) : même transport que <see cref="SendInvalidationTo"/> (<c>[Rpc.Broadcast]</c>
+	/// + <see cref="Rpc.FilterInclude(Sandbox.Connection)"/>). Accusé de traitement, pas un second
+	/// canal d'état canonique — voir <see cref="WorldContainerTransferResult"/>.
+	/// </summary>
+	void SendTransferResultTo( Connection target, WorldContainerTransferResult result )
+	{
+		Log.Info( $"[WorldContainerTransfer][Result][Send] '{GameObject.Name}' -> '{target?.DisplayName}' : " +
+			$"success={result.Success}, direction={result.Direction}, instance={result.InstanceId}, reason={result.FailureReason}." );
+
+		using ( Rpc.FilterInclude( target ) )
+		{
+			ReceiveTransferResult( result.Success, result.Direction, result.InstanceId, result.FailureReason );
+		}
+	}
+
+	/// <summary>
+	/// Reçoit le résultat ciblé d'un transfert — exécutée uniquement chez le viewer ciblé par le
+	/// filtre. Alimente uniquement <see cref="LastTransferResult"/> (présentation/tests) — jamais
+	/// une preuve que les snapshots de contenu ont déjà été appliqués localement (voir
+	/// <see cref="LocalRevision"/>/<see cref="PlayerInventoryComponent.LocalRevision"/> pour cela).
+	/// </summary>
+	[Rpc.Broadcast]
+	public void ReceiveTransferResult( bool success, WorldContainerTransferDirection direction, string instanceId, WorldContainerTransferFailureReason failureReason )
+	{
+		LastTransferResult = success
+			? WorldContainerTransferResult.Ok( direction, instanceId )
+			: WorldContainerTransferResult.Fail( direction, instanceId, failureReason );
+		HasLocalTransferResult = true;
+		LocalTransferResultSequence++;
+
+		Log.Info( $"[WorldContainerTransfer][Result][Receive] '{GameObject.Name}' : success={success}, direction={direction}, " +
+			$"instance={instanceId}, reason={failureReason}, sequence={LocalTransferResultSequence}." );
 	}
 
 	// --- Transport ---
