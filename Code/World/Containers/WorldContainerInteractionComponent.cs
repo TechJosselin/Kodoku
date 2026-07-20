@@ -1,3 +1,6 @@
+using System;
+using Kodoku.Player;
+
 namespace Kodoku.World.Containers;
 
 /// <summary>
@@ -64,6 +67,24 @@ public sealed class WorldContainerInteractionComponent : Component, Component.IP
 		if ( !WorldContainer.IsValid() || !WorldContainer.GameObject.IsValid() )
 			return null;
 
+		// Le tooltip ne doit jamais apparaître à une distance où l'ouverture échouerait de toute façon
+		// (WorldContainerComponent.TryOpenAuthoritative rejette au-delà de cette même portée effective) :
+		// la détection stock du regard (PlayerController.Hovered/Tooltips) n'est, elle, pas bornée par
+		// ReachLength — seul le press l'est. Vérification locale/indicative uniquement, comme CanPress —
+		// c'est TryOpenAuthoritative qui revalide réellement côté host.
+		if ( !IsWithinTooltipRange() )
+			return null;
+
 		return new IPressable.Tooltip( $"Ouvrir {WorldContainer.GameObject.Name}", "", "" );
+	}
+
+	bool IsWithinTooltipRange()
+	{
+		var controller = KodokuPlayerComponent.Local?.PlayerController;
+		if ( controller is null )
+			return false;
+
+		var effectiveRange = MathF.Min( controller.ReachLength, WorldContainer.MaxOpenDistance );
+		return Vector3.DistanceBetween( controller.EyePosition, WorldContainer.GameObject.WorldPosition ) <= effectiveRange;
 	}
 }

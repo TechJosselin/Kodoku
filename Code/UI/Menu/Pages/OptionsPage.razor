@@ -1,0 +1,20 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Kodoku.UI
+@inherits Panel
+
+<root class="page-placeholder">
+	<div class="page-title">Options</div>
+	<div class="page-description">Game options will be integrated later.</div>
+	<button class="action-button" onclick=@ShowEngineMenu>Open s&amp;box menu</button>
+</root>
+
+@code
+{
+	// Ouvre le menu natif du moteur (paramètres, binds, etc. — Sandbox.Game.Overlay.ShowPauseMenu, doc
+	// XML locale confirmée : « Opens the pause menu overlay. This is the same menu that appears when
+	// pressing ESC »). GameMenu.Close() referme systématiquement ce même overlay (Game.Overlay.CloseAll)
+	// pour qu'Escape n'ouvre plus jamais ce menu moteur malgré lui — ce bouton reste l'unique porte
+	// d'entrée volontaire vers lui tant qu'aucune page Options propre à Kodoku n'existe.
+	void ShowEngineMenu() => Game.Overlay.ShowPauseMenu();
+}

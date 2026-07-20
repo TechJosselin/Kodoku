@@ -296,10 +296,10 @@
               "Children": []
             },
             {
-              "__guid": "bc9fdaab-1d9f-4644-9588-faf76a6301d3",
+              "__guid": "22f731d8-16ad-4a8c-ad05-4159e1b11da7",
               "__version": 2,
               "Flags": 0,
-              "Name": "InventoryDebugPanel",
+              "Name": "GameMenu",
               "Position": "0,0,0",
               "Rotation": "0,0,0,1",
               "Scale": "1,1,1",
@@ -313,9 +313,9 @@
               "Components": [
                 {
                   "__type": "Sandbox.ScreenPanel",
-                  "__guid": "2503b9c3-aafb-43aa-9144-c187c09f0528",
+                  "__guid": "31a7cdb5-de98-43e2-80de-12f98d7ef7dc",
                   "__enabled": true,
-                  "Flags": 512,
+                  "Flags": 0,
                   "AutoScreenScale": true,
                   "OnComponentDestroy": null,
                   "OnComponentDisabled": null,
@@ -327,13 +327,62 @@
                   "Scale": 1,
                   "ScaleStrategy": "ConsistentHeight",
                   "TargetCamera": null,
-                  "ZIndex": 100
+                  "ZIndex": 120
                 },
                 {
-                  "__type": "Kodoku.UI.InventoryDebugPanel",
-                  "__guid": "e2d35bce-afe3-4336-9dc3-7ce952ec79ae",
+                  "__type": "Kodoku.UI.GameMenu",
+                  "__guid": "69e87037-da91-43b7-a039-4dff9729ac99",
                   "__enabled": true,
-                  "Flags": 512,
+                  "Flags": 0,
+                  "OnComponentDestroy": null,
+                  "OnComponentDisabled": null,
+                  "OnComponentEnabled": null,
+                  "OnComponentFixedUpdate": null,
+                  "OnComponentStart": null,
+                  "OnComponentUpdate": null
+                }
+              ],
+              "Children": []
+            },
+            {
+              "__guid": "f2c450f7-39b5-49d7-931e-509ef0fc9d43",
+              "__version": 2,
+              "Flags": 0,
+              "Name": "InteractionTooltip",
+              "Position": "0,0,0",
+              "Rotation": "0,0,0,1",
+              "Scale": "1,1,1",
+              "Tags": "",
+              "Enabled": true,
+              "NetworkMode": 2,
+              "NetworkFlags": 0,
+              "NetworkOrphaned": 0,
+              "NetworkTransmit": true,
+              "OwnerTransfer": 1,
+              "Components": [
+                {
+                  "__type": "Sandbox.ScreenPanel",
+                  "__guid": "cea73d9a-f56b-4119-a63e-983da466d915",
+                  "__enabled": true,
+                  "Flags": 0,
+                  "AutoScreenScale": true,
+                  "OnComponentDestroy": null,
+                  "OnComponentDisabled": null,
+                  "OnComponentEnabled": null,
+                  "OnComponentFixedUpdate": null,
+                  "OnComponentStart": null,
+                  "OnComponentUpdate": null,
+                  "Opacity": 1,
+                  "Scale": 1,
+                  "ScaleStrategy": "ConsistentHeight",
+                  "TargetCamera": null,
+                  "ZIndex": 90
+                },
+                {
+                  "__type": "Kodoku.UI.InteractionTooltipPanel",
+                  "__guid": "84545fb7-6921-45a1-bfa1-5ff38eabd423",
+                  "__enabled": true,
+                  "Flags": 0,
                   "OnComponentDestroy": null,
                   "OnComponentDisabled": null,
                   "OnComponentEnabled": null,
@@ -1802,6 +1851,92 @@
       "OwnerTransfer": 1,
       "Components": [],
       "Children": []
+    },
+    {
+      "__guid": "93f9f41c-5568-47ff-b8b8-c509c5ed2f54",
+      "__version": 2,
+      "__Prefab": "prefabs/world/containers/wooden_crate.prefab",
+      "__PrefabInstancePatch": {
+        "AddedObjects": [],
+        "RemovedObjects": [],
+        "PropertyOverrides": [
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "e7169732-7dbc-4a16-822f-d4abd0e05ff1"
+            },
+            "Property": "Name",
+            "Value": "Wooden Crate A"
+          },
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "e7169732-7dbc-4a16-822f-d4abd0e05ff1"
+            },
+            "Property": "Position",
+            "Value": "-300,340,12.5000038"
+          },
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "e7169732-7dbc-4a16-822f-d4abd0e05ff1"
+            },
+            "Property": "Rotation",
+            "Value": "0,0,0,0.99999994"
+          }
+        ],
+        "MovedObjects": []
+      },
+      "__PrefabIdToInstanceId": {
+        "e7169732-7dbc-4a16-822f-d4abd0e05ff1": "93f9f41c-5568-47ff-b8b8-c509c5ed2f54",
+        "e70dd837-d63b-4a30-8ed5-3a52c3cc2aac": "e40f088a-835f-4a21-b001-81d5194156fa",
+        "6b61d82e-21ad-410a-a3aa-91ecf1444413": "d2b7521b-7e4a-4f5a-810d-0a87e45cd42f",
+        "8f19829d-5981-41e9-b53a-0108c4e96826": "a9d24e80-fc4b-4836-9fea-5c537e4341ab",
+        "bdd15f2c-e7ab-4076-ac74-852b310fd4b8": "9dbd0bd1-9c82-4655-992b-b313cab53a26"
+      }
+    },
+    {
+      "__guid": "f8b04f39-c4ae-4b23-bb6a-ccb297029550",
+      "__version": 2,
+      "__Prefab": "prefabs/world/containers/wooden_crate.prefab",
+      "__PrefabInstancePatch": {
+        "AddedObjects": [],
+        "RemovedObjects": [],
+        "PropertyOverrides": [
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "e7169732-7dbc-4a16-822f-d4abd0e05ff1"
+            },
+            "Property": "Name",
+            "Value": "Wooden Crate B"
+          },
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "e7169732-7dbc-4a16-822f-d4abd0e05ff1"
+            },
+            "Property": "Position",
+            "Value": "-416,340,12.5"
+          },
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "e7169732-7dbc-4a16-822f-d4abd0e05ff1"
+            },
+            "Property": "Rotation",
+            "Value": "0,0,0,0.99999994"
+          }
+        ],
+        "MovedObjects": []
+      },
+      "__PrefabIdToInstanceId": {
+        "e7169732-7dbc-4a16-822f-d4abd0e05ff1": "f8b04f39-c4ae-4b23-bb6a-ccb297029550",
+        "e70dd837-d63b-4a30-8ed5-3a52c3cc2aac": "e57a05f3-9819-47ba-9beb-f7f407982ccb",
+        "6b61d82e-21ad-410a-a3aa-91ecf1444413": "8634b5fe-2655-493e-bc9b-c59a69d75cb4",
+        "8f19829d-5981-41e9-b53a-0108c4e96826": "b8c5127c-f977-4713-bf9f-fe40dbdfb31c",
+        "bdd15f2c-e7ab-4076-ac74-852b310fd4b8": "22149c8a-6910-4fde-b056-cab1937cdb82"
+      }
     }
   ],
   "SceneProperties": {

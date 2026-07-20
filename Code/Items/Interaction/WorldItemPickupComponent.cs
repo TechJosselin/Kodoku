@@ -87,7 +87,25 @@ public sealed class WorldItemPickupComponent : Component, Component.IPressable
 		if ( IsClaimed || !WorldItem.IsValid() || WorldItem.Definition is null )
 			return null;
 
+		// Le tooltip ne doit jamais apparaître à une distance où le pickup échouerait de toute façon
+		// (TryPickupAuthoritative rejette au-delà de cette même portée effective, voir plus bas) : la
+		// détection stock du regard (PlayerController.Hovered/Tooltips) n'est, elle, pas bornée par
+		// ReachLength — seul le press l'est. Vérification locale/indicative uniquement, comme CanPress —
+		// c'est TryPickupAuthoritative qui revalide réellement côté host.
+		if ( !IsWithinTooltipRange() )
+			return null;
+
 		return new IPressable.Tooltip( $"Ramasser {WorldItem.Definition.DisplayName}", "", "" );
+	}
+
+	bool IsWithinTooltipRange()
+	{
+		var controller = KodokuPlayerComponent.Local?.PlayerController;
+		if ( controller is null )
+			return false;
+
+		var effectiveRange = MathF.Min( controller.ReachLength, MaxPickupDistance );
+		return Vector3.DistanceBetween( controller.EyePosition, WorldItem.GameObject.WorldPosition ) <= effectiveRange;
 	}
 
 	/// <summary>

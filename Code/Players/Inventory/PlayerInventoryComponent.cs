@@ -276,8 +276,8 @@ public sealed class PlayerInventoryComponent : Component, IGameObjectNetworkEven
 	}
 
 	/// <summary>
-	/// Outil de debug uniquement (voir <see cref="Kodoku.UI.InventoryDebugPanel"/>, Test 6 de la mission
-	/// snapshot d'inventaire) : altère volontairement le cache local pour vérifier qu'une resynchronisation
+	/// Outil de debug uniquement (Test 6 de la mission snapshot d'inventaire, à l'origine exercé via le
+	/// panneau debug depuis retiré) : altère volontairement le cache local pour vérifier qu'une resynchronisation
 	/// explicite (<see cref="RequestSnapshot"/>) le reconstruit fidèlement depuis <see cref="Container"/>.
 	/// Ne touche jamais <see cref="Container"/> — ce n'est pas une mutation de gameplay, uniquement un
 	/// moyen de corrompre l'état de présentation pour tester le mécanisme de resync lui-même.

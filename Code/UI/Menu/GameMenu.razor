@@ -1,0 +1,347 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using Kodoku.Player;
+@using Kodoku.World.Containers;
+@namespace Kodoku.UI
+@inherits PanelComponent
+
+<root class="@( IsOpen ? "open" : "closed" )">
+	@if ( IsOpen )
+	{
+		<div class="overlay">
+			<div class="window">
+				<div class="navigation">
+					@foreach ( var navPage in NavigationOrder )
+					{
+						// Capture explicite par bouton, distincte de la variable de boucle — défensif seulement
+						// (le foreach C# capture déjà une variable fraîche par itération depuis C# 5), pour
+						// qu'un futur refactor ne puisse jamais réintroduire le piège classique de capture de
+						// variable de boucle. Appelle l'instance courante (this.OpenPage), jamais GameMenu.Local.
+						var targetPage = navPage;
+
+						<button class="tab @( ActivePage == targetPage ? "active" : "" )" onclick=@( () => OpenPage( targetPage ) )>@targetPage</button>
+					}
+				</div>
+				<div class="content">
+					@if ( ActivePage == GameMenuPage.Inventory )
+					{
+						<InventoryPage />
+					}
+					else if ( ActivePage == GameMenuPage.Stats )
+					{
+						<StatsPage />
+					}
+					else if ( ActivePage == GameMenuPage.Quests )
+					{
+						<QuestsPage />
+					}
+					else if ( ActivePage == GameMenuPage.Options )
+					{
+						<OptionsPage />
+					}
+				</div>
+			</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// Référence locale unique — même patron que <see cref="KodokuPlayerComponent.Local"/> : un seul
+	/// <see cref="GameMenu"/> existe par client (cloné une seule fois par le bootstrap UI local), donc
+	/// aucune garde d'identité contre une double assignation n'est nécessaire ici (contrairement à
+	/// <c>KodokuPlayerComponent</c>, qui doit composer avec <c>OnStart</c>/<c>StartControl</c> pouvant
+	/// tous deux se déclencher pour le même pawn networké — ce composant n'est jamais networké).
+	/// </summary>
+	public static GameMenu Local { get; private set; }
+
+	/// <summary>Seule source de vérité de l'état ouvert/fermé — jamais dupliquée ailleurs.</summary>
+	public bool IsOpen { get; private set; }
+
+	/// <summary>
+	/// Seule source de vérité de la page active. Vaut <see cref="GameMenuPage.Inventory"/> par défaut
+	/// (valeur zéro de l'enum) avant toute sélection — <see cref="Open"/> ne réinitialise jamais cette
+	/// valeur, ce qui satisfait déjà « conserve la dernière page sélectionnée, ou Inventory si aucune
+	/// ne l'a encore été » sans champ de suivi supplémentaire.
+	/// </summary>
+	public GameMenuPage ActivePage { get; private set; } = GameMenuPage.Inventory;
+
+	static readonly GameMenuPage[] NavigationOrder =
+	{
+		GameMenuPage.Inventory,
+		GameMenuPage.Stats,
+		GameMenuPage.Quests,
+		GameMenuPage.Options,
+	};
+
+	// --- Capture/restauration des contrôles locaux ---
+	//
+	// Capturé à l'ouverture, restauré exactement à la fermeture — jamais une valeur supposée (voir
+	// mission : « ne pas supposer que les contrôles étaient forcément activés avant l'ouverture »).
+	// _controlledController mémorise le PlayerController précis dont les valeurs ont été capturées :
+	// si aucun pawn local n'existait à l'ouverture (cas limite), il reste null et la restauration ne
+	// touche jamais un contrôleur qu'elle n'a pas elle-même modifié.
+
+	PlayerController _controlledController;
+	bool _capturedUseInputControls;
+	bool _capturedUseLookControls;
+	bool _capturedEnablePressing;
+	MouseVisibility _capturedMouseVisibility;
+	bool _hasCapturedControlState;
+
+	/// <summary>
+	/// Dernier conteneur vu ouvert (<see cref="WorldContainerComponent.LocalOpenContainer"/>), comparé
+	/// chaque frame dans <see cref="OnUpdate"/> — détecte la transition « aucun conteneur ouvert » ou
+	/// « un autre conteneur ouvert » -> « ce conteneur précis vient de s'ouvrir », pour amener le joueur
+	/// sur la page Inventory à ce moment précis. Préféré à un abonnement à
+	/// <see cref="WorldContainerComponent.LocalContainerOpened"/> (essayé d'abord, sans effet observé en
+	/// test réel — cause exacte non identifiée) : ce polling utilise le même mécanisme déjà éprouvé que
+	/// Tab/Escape ci-dessous (OnUpdate, exécuté à chaque frame sur cette instance précise), sans dépendre
+	/// du moment ou du contexte exact où l'événement statique serait levé.
+	/// </summary>
+	WorldContainerComponent _lastSeenOpenContainer;
+
+	protected override void OnStart()
+	{
+		Local = this;
+	}
+
+	protected override void OnDestroy()
+	{
+		// Restaure les contrôles si le menu est détruit pendant qu'il est ouvert (voir mission section 11)
+		// — avant de nettoyer Local, même si l'ordre n'a pas d'importance ici (deux champs indépendants).
+		if ( IsOpen )
+			RestoreControlState();
+
+		if ( Local == this )
+			Local = null;
+	}
+
+	protected override void OnUpdate()
+	{
+		// Ouvrir un conteneur du monde (E) doit afficher directement la page Inventory, où la 3ème
+		// colonne de InventoryPage affiche déjà le conteneur ouvert (piloté indépendamment par
+		// WorldContainerComponent.LocalOpenContainer) — ce bloc ne fait qu'amener le joueur sur la bonne
+		// page. Aucune action symétrique n'est nécessaire à la fermeture : la colonne conteneur se vide
+		// déjà d'elle-même dès que IsLocalSessionOpen repasse à faux (voir Tick() de InventoryPage) ;
+		// fermer le conteneur ne doit pas refermer tout le menu.
+		var openContainer = WorldContainerComponent.LocalOpenContainer;
+		if ( openContainer.IsValid() && openContainer != _lastSeenOpenContainer )
+			OpenPage( GameMenuPage.Inventory );
+		_lastSeenOpenContainer = openContainer;
+
+		if ( Input.Pressed( "Menu" ) )
+			Toggle();
+
+		// Tab ferme le menu s'il était déjà ouvert, quelle que soit la page active — symétrique avec la
+		// touche qui a servi à l'ouvrir. S'il était fermé, l'ouvre directement sur la page Inventory.
+		// Contrairement à OpenPage seul (utilisé par ailleurs, ex. futurs conteneurs, qui ne doit jamais
+		// fermer le menu), ce comportement de toggle est spécifique à cette touche.
+		if ( Input.Pressed( "Inventory" ) )
+		{
+			if ( IsOpen )
+				Close();
+			else
+				OpenPage( GameMenuPage.Inventory );
+		}
+
+		// Escape amène directement sur la page Options — que le menu soit fermé (l'ouvre sur Options) ou
+		// déjà ouvert sur une autre page (bascule dessus). Contrairement à Tab (Inventory) et Menu/Q, qui
+		// ferment le menu au second appui, Escape ne ferme jamais rien ici : Q et Tab restent les deux
+		// façons de fermer le menu.
+		if ( Input.EscapePressed )
+			OpenPage( GameMenuPage.Options );
+
+		// Réaffirme l'état « menu ouvert » à chaque frame plutôt que de compter sur une seule
+		// écriture faite dans Open() : symptôme confirmé en test réel (2026-07-19, host + client) —
+		// sur le host tout fonctionne, mais sur un client connecté le curseur ne se libère jamais et
+		// aucun clic n'atteint l'UI, alors que IsOpen bascule correctement (Menu ouvre/ferme bien
+		// visuellement). Hypothèse la plus solide : une écriture locale ponctuelle sur les propriétés
+		// de PlayerController peut être écrasée dès la frame suivante par autre chose (réplication
+		// réseau, logique interne du PlayerController) sur un client non-autoritaire — jamais observé
+		// sur le host, qui fait autorité. Cette réaffirmation continue neutralise le symptôme quel que
+		// soit le mécanisme exact, sans re-capturer (see CaptureAndApplyControlState, appelée une seule
+		// fois par cycle d'ouverture) : elle ne fait que réappliquer les mêmes valeurs déjà capturées.
+		if ( IsOpen )
+			EnforceControlState();
+	}
+
+	/// <summary>
+	/// Ouvre le menu. Ne crée jamais de nouvelle instance (ce composant est déjà l'unique instance
+	/// locale). Idempotent : un second appel pendant que le menu est déjà ouvert ne fait rien (ne
+	/// recapture pas l'état des contrôles par-dessus l'état déjà bloqué). <c>StateHasChanged()</c>
+	/// force la reconstruction immédiate du sous-arbre interactif — symétrique de <see cref="Close"/> —
+	/// pour qu'il existe dès que possible plutôt que d'attendre le prochain cycle automatique de
+	/// <see cref="BuildHash"/>, réduisant la fenêtre où le curseur serait rendu visible/actif avant que
+	/// les boutons n'existent réellement dans l'arbre.
+	/// </summary>
+	public void Open()
+	{
+		if ( IsOpen )
+			return;
+
+		CaptureAndApplyControlState();
+		IsOpen = true;
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// Ouvre le menu si nécessaire (mêmes règles d'input que <see cref="Open"/>), puis sélectionne la
+	/// page demandée — utilisée plus tard par les conteneurs pour forcer l'affichage d'Inventory.
+	/// </summary>
+	public void OpenPage( GameMenuPage page )
+	{
+		if ( !IsOpen )
+			Open();
+
+		ActivePage = page;
+	}
+
+	/// <summary>
+	/// Ferme le menu et restaure exactement les contrôles précédents. Idempotent.
+	///
+	/// Ordre important (voir doc XML locale de <see cref="Sandbox.UI.Panel.StateHasChanged"/> : la
+	/// reconstruction du rendu Razor est différée « next frame », jamais synchrone avec le simple
+	/// changement de <see cref="IsOpen"/>) : <c>StateHasChanged()</c> est appelée explicitement
+	/// avant <see cref="RestoreControlState"/> pour forcer la reconstruction du sous-arbre interactif
+	/// (retrait des boutons) au lieu de compter implicitement sur le prochain cycle automatique de
+	/// <see cref="BuildHash"/> — élimine la fenêtre où <see cref="Sandbox.Mouse.Visibility"/> serait
+	/// restaurée pendant que l'arbre affiché est encore celui, ouvert, d'avant cet appel.
+	/// </summary>
+	public void Close()
+	{
+		if ( !IsOpen )
+			return;
+
+		IsOpen = false;
+		StateHasChanged();
+		RestoreControlState();
+
+		// Le moteur ouvre automatiquement son propre menu pause/paramètres sur Escape
+		// (Sandbox.Game.Overlay.ShowPauseMenu — doc XML locale confirmée : « Opens the pause menu
+		// overlay. This is the same menu that appears when pressing ESC »), en plus de notre propre
+		// gestion d'Escape (voir OnUpdate) — les deux réagissent à la même pression de touche. Symptôme
+		// observé en test réel : notre GameMenu se ferme bien (IsOpen redevient faux), mais le curseur
+		// reste visible à l'écran — provoqué par ce menu moteur qui s'ouvre en parallèle avec son propre
+		// curseur. GameMenu (page Options incluse) est destiné à remplacer entièrement ce menu moteur,
+		// jamais à cohabiter avec lui : on le referme systématiquement dès que nous fermons le nôtre,
+		// quelle qu'en soit la cause (Escape, Tab, Menu). Sandbox.Game.Overlay.CloseAll est un appel
+		// statique sans effet si aucun overlay moteur n'est ouvert (doc XML : « Close all open overlays »).
+		Game.Overlay.CloseAll( true );
+
+		// Fermer le GameMenu, quelle qu'en soit la cause (Tab, Escape, Menu), doit fermer un éventuel
+		// conteneur monde encore ouvert — sans cela, la session resterait ouverte côté host (le joueur
+		// resterait viewer) alors que plus aucune UI locale ne l'affiche. CloseLocalSessionImmediately()
+		// est déjà idempotent (no-op si aucune session locale n'est ouverte, voir WorldContainerComponent)
+		// et notifie le host (RequestClose()) — même mécanisme que le bouton Close de la 3ème colonne
+		// d'InventoryPage.
+		WorldContainerComponent.LocalOpenContainer?.CloseLocalSessionImmediately();
+	}
+
+	public void Toggle()
+	{
+		if ( IsOpen )
+			Close();
+		else
+			Open();
+	}
+
+	/// <summary>
+	/// Capture l'état actuel du <see cref="PlayerController"/> local et du curseur avant de les
+	/// remplacer par l'état « menu ouvert ». <see cref="PlayerController.UseInputControls"/> et
+	/// <see cref="PlayerController.UseLookControls"/> sont désactivées (respectivement : bloque le
+	/// déplacement — la doc XML locale de <c>UpdateDucking</c> confirme que la logique de
+	/// <c>FixedUpdate</c> pilotée par l'input est conditionnée à cette propriété — et bloque la
+	/// rotation caméra à la souris, documentée explicitement : « we'll move the camera around using
+	/// the mouse »). <see cref="PlayerController.EnablePressing"/> est désactivée pour bloquer
+	/// l'interaction <c>Use</c> (documentée : « Allows to player to interact with things by "use"ing
+	/// them »). <see cref="PlayerController.UseCameraControls"/> existe mais n'a aucune documentation
+	/// XML locale confirmant son comportement exact — délibérément non touchée pour ne pas deviner une
+	/// API (voir mission section 11). <see cref="Sandbox.Mouse.Visibility"/> est mise à
+	/// <see cref="MouseVisibility.Visible"/> — jamais l'API <c>Mouse.Visible</c>, marquée obsolète dans
+	/// la documentation locale au profit de <c>Mouse.Visibility</c>.
+	/// </summary>
+	void CaptureAndApplyControlState()
+	{
+		_controlledController = KodokuPlayerComponent.Local?.PlayerController;
+		if ( _controlledController is not null )
+		{
+			_capturedUseInputControls = _controlledController.UseInputControls;
+			_capturedUseLookControls = _controlledController.UseLookControls;
+			_capturedEnablePressing = _controlledController.EnablePressing;
+
+			_controlledController.UseInputControls = false;
+			_controlledController.UseLookControls = false;
+			_controlledController.EnablePressing = false;
+
+			// Bug confirmé en test réel multijoueur (2026-07-20) : ouvrir le menu pendant que le joueur
+			// courait le laissait glisser indéfiniment dans la même direction jusqu'à la fermeture.
+			// UseInputControls = false arrête uniquement la LECTURE de nouvel input (voir doc XML locale
+			// de UpdateDucking) — il ne remet jamais à zéro le WishVelocity déjà en cours au moment de
+			// l'ouverture, et le reste de la simulation de mouvement continue de l'appliquer. Vector3.Zero
+			// ici stoppe l'intention de déplacement ; la vitesse physique réelle (Velocity, setter privé,
+			// non accessible) décélère ensuite naturellement via BrakePower/GroundFriction — jamais un
+			// arrêt téléporté. Jamais restauré à la fermeture : une fois UseInputControls réactivé,
+			// l'input courant du joueur régénère de toute façon un WishVelocity frais dès le FixedUpdate
+			// suivant.
+			_controlledController.WishVelocity = Vector3.Zero;
+		}
+
+		_capturedMouseVisibility = Mouse.Visibility;
+		Mouse.Visibility = MouseVisibility.Visible;
+
+		_hasCapturedControlState = true;
+	}
+
+	/// <summary>
+	/// Réapplique (jamais ne recapture) l'état « menu ouvert » — appelée chaque frame par
+	/// <see cref="OnUpdate"/> tant que <see cref="IsOpen"/>. Voir le commentaire de
+	/// <see cref="OnUpdate"/> pour la justification : neutralise toute réécriture externe qui
+	/// annulerait une application ponctuelle faite une seule fois dans <see cref="Open"/>.
+	/// </summary>
+	void EnforceControlState()
+	{
+		if ( _controlledController.IsValid() )
+		{
+			_controlledController.UseInputControls = false;
+			_controlledController.UseLookControls = false;
+			_controlledController.EnablePressing = false;
+
+			// Même réaffirmation continue que les trois propriétés ci-dessus, et pour la même raison
+			// (voir CaptureAndApplyControlState) : sur un client non-autoritaire, un WishVelocity remis à
+			// zéro une seule fois pourrait être écrasé la frame suivante par autre chose (réplication,
+			// logique interne) — réappliqué ici à chaque frame tant que le menu reste ouvert.
+			_controlledController.WishVelocity = Vector3.Zero;
+		}
+
+		Mouse.Visibility = MouseVisibility.Visible;
+	}
+
+	/// <summary>
+	/// Restaure exactement les valeurs capturées par <see cref="CaptureAndApplyControlState"/> — jamais
+	/// une valeur par défaut supposée. <see cref="_controlledController"/> n'est modifié que s'il est
+	/// toujours valide (le pawn local a pu être détruit pendant que le menu était ouvert).
+	/// </summary>
+	void RestoreControlState()
+	{
+		if ( !_hasCapturedControlState )
+			return;
+
+		if ( _controlledController.IsValid() )
+		{
+			_controlledController.UseInputControls = _capturedUseInputControls;
+			_controlledController.UseLookControls = _capturedUseLookControls;
+			_controlledController.EnablePressing = _capturedEnablePressing;
+		}
+
+		Mouse.Visibility = _capturedMouseVisibility;
+
+		_controlledController = null;
+		_hasCapturedControlState = false;
+	}
+
+	// Ne dépend d'aucune donnée d'inventaire/conteneur pendant ce jalon (voir mission section 18).
+	protected override int BuildHash() => HashCode.Combine( IsOpen, ActivePage );
+}
