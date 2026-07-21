@@ -14,6 +14,9 @@ public readonly record struct WorldContainerTransferResult
 {
 	public bool Success { get; }
 
+	/// <summary>Identifiant de corrélation de la requête cliente à l'origine de ce résultat (voir <see cref="WorldContainerComponent.RequestTakeItem"/>/<see cref="WorldContainerComponent.RequestStoreItem"/>) — jamais généré côté host, seulement reflété tel que reçu.</summary>
+	public string RequestId { get; }
+
 	public WorldContainerTransferDirection Direction { get; }
 
 	/// <summary>Représentation chaîne canonique (<c>Guid.ToString()</c>) — même convention que <see cref="WorldContainerSnapshotEntry.InstanceId"/>.</summary>
@@ -21,17 +24,18 @@ public readonly record struct WorldContainerTransferResult
 
 	public WorldContainerTransferFailureReason FailureReason { get; }
 
-	WorldContainerTransferResult( bool success, WorldContainerTransferDirection direction, string instanceId, WorldContainerTransferFailureReason failureReason )
+	WorldContainerTransferResult( bool success, string requestId, WorldContainerTransferDirection direction, string instanceId, WorldContainerTransferFailureReason failureReason )
 	{
 		Success = success;
+		RequestId = requestId;
 		Direction = direction;
 		InstanceId = instanceId;
 		FailureReason = failureReason;
 	}
 
-	public static WorldContainerTransferResult Ok( WorldContainerTransferDirection direction, string instanceId )
-		=> new( true, direction, instanceId, WorldContainerTransferFailureReason.None );
+	public static WorldContainerTransferResult Ok( string requestId, WorldContainerTransferDirection direction, string instanceId )
+		=> new( true, requestId, direction, instanceId, WorldContainerTransferFailureReason.None );
 
-	public static WorldContainerTransferResult Fail( WorldContainerTransferDirection direction, string instanceId, WorldContainerTransferFailureReason failureReason )
-		=> new( false, direction, instanceId, failureReason );
+	public static WorldContainerTransferResult Fail( string requestId, WorldContainerTransferDirection direction, string instanceId, WorldContainerTransferFailureReason failureReason )
+		=> new( false, requestId, direction, instanceId, failureReason );
 }

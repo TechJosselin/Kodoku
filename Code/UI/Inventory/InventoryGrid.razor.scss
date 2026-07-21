@@ -90,4 +90,24 @@ InventoryGrid {
 			max-width: 100%;
 		}
 	}
+
+	// Aperçu fantôme de drag-and-drop — jamais une cible de clic (pointer-events: none), toujours
+	// au-dessus des items existants (z-index) pour rester lisible même sur une cellule déjà occupée.
+	.ghost {
+		position: absolute;
+		pointer-events: none;
+		z-index: 10;
+		border-radius: 4px;
+		border: 2px dashed;
+
+		&.valid {
+			border-color: rgba( 120, 220, 140, 0.9 );
+			background-color: rgba( 120, 220, 140, 0.18 );
+		}
+
+		&.invalid {
+			border-color: rgba( 230, 90, 90, 0.9 );
+			background-color: rgba( 230, 90, 90, 0.18 );
+		}
+	}
 }

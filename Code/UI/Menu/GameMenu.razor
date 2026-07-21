@@ -190,11 +190,31 @@
 	/// <summary>
 	/// Ouvre le menu si nécessaire (mêmes règles d'input que <see cref="Open"/>), puis sélectionne la
 	/// page demandée — utilisée plus tard par les conteneurs pour forcer l'affichage d'Inventory.
+	///
+	/// Quitter la page Inventory pour une autre page (menu qui reste ouvert) doit fermer un éventuel
+	/// conteneur monde encore ouvert — même rationale que <see cref="Close"/> : sans cela, la session
+	/// resterait ouverte côté host (le joueur resterait viewer) alors que la 3ème colonne d'InventoryPage
+	/// qui l'affichait vient de disparaître. Approche A (voir mission) : le parent (ce composant, stable
+	/// à travers les changements d'onglet) connaît explicitement la transition « ancien onglet Inventory,
+	/// nouveau onglet différent » — <c>InventoryPage</c>, elle, est un <c>Panel</c> imbriqué reconstruit à
+	/// chaque changement d'onglet par le rendu conditionnel ci-dessus (branche Razor différente), donc son
+	/// état transitoire local (drag, aperçu, sélection) disparaît déjà de lui-même avec l'instance détruite
+	/// — aucune coopération de sa part n'est nécessaire ici, seule la fermeture du conteneur (état externe,
+	/// statique, indépendant de cette instance) doit être déclenchée explicitement. Revenir ensuite sur
+	/// Inventory ne rouvre jamais automatiquement l'ancien conteneur : la nouvelle instance d'InventoryPage
+	/// lit <see cref="WorldContainerComponent.LocalOpenContainer"/>, déjà nul à ce point.
+	///
+	/// Idempotent avec <see cref="Close"/> (qui ferme aussi inconditionnellement tout conteneur ouvert,
+	/// quel que soit l'onglet actif) : <see cref="WorldContainerComponent.CloseLocalSessionImmediately"/>
+	/// est déjà un no-op si aucune session locale n'est ouverte — aucune double fermeture possible.
 	/// </summary>
 	public void OpenPage( GameMenuPage page )
 	{
 		if ( !IsOpen )
 			Open();
+
+		if ( ActivePage == GameMenuPage.Inventory && page != GameMenuPage.Inventory )
+			WorldContainerComponent.LocalOpenContainer?.CloseLocalSessionImmediately();
 
 		ActivePage = page;
 	}
