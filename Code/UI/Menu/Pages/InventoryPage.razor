@@ -18,7 +18,7 @@
 				<div class="column-title">Inventory — @Inventory.LocalItemCount item(s)</div>
 
 				<div class="grid-viewport">
-					<InventoryGrid Width="@Inventory.Width" Height="@Inventory.Height" Items="@BuildPlayerGridItems()" OnItemClicked="@SelectPlayerItem" />
+					<InventoryGrid @ref="PlayerGridPanel" Width="@Inventory.Width" Height="@Inventory.Height" Items="@BuildPlayerGridItems()" OnItemClicked="@SelectPlayerItem" Ghost="@GetPlayerGhost()" />
 				</div>
 
 				<div class="actions-panel">
@@ -27,7 +27,7 @@
 					{
 						var definition = ResolveDefinition( playerEntry.ItemId );
 						var instanceId = playerEntry.InstanceId;
-						bool storePending = _pendingStoreItemIds.Contains( instanceId );
+						bool storePending = IsItemOperationPending( instanceId );
 
 						<div class="selected-info">@( definition?.DisplayName ?? playerEntry.ItemId ) <span class="qty">x@( playerEntry.Quantity )</span></div>
 						<div class="actions">
@@ -122,7 +122,7 @@
 				</div>
 
 				<div class="grid-viewport">
-					<InventoryGrid Width="@_container.LocalWidth" Height="@_container.LocalHeight" Items="@BuildContainerGridItems()" OnItemClicked="@SelectContainerItem" />
+					<InventoryGrid @ref="ContainerGridPanel" Width="@_container.LocalWidth" Height="@_container.LocalHeight" Items="@BuildContainerGridItems()" OnItemClicked="@SelectContainerItem" Ghost="@GetContainerGhost()" />
 				</div>
 
 				<div class="actions-panel">
@@ -131,7 +131,7 @@
 					{
 						var definition = ResolveDefinition( containerEntry.ItemId );
 						var instanceId = containerEntry.InstanceId;
-						bool takePending = _pendingTakeItemIds.Contains( instanceId );
+						bool takePending = IsItemOperationPending( instanceId );
 
 						<div class="selected-info">@( definition?.DisplayName ?? containerEntry.ItemId ) <span class="qty">x@( containerEntry.Quantity )</span></div>
 						<div class="actions">
@@ -178,11 +178,245 @@
 	/// </summary>
 	WorldContainerComponent _container;
 
-	/// <summary>Anti-double-clic Take. Jamais utilisé comme preuve qu'un snapshot a déjà été appliqué.</summary>
-	readonly HashSet<string> _pendingTakeItemIds = new();
+	/// <summary>Nature de l'opération réseau représentée par un <see cref="PendingOperation"/>.</summary>
+	enum PendingOperationKind
+	{
+		Move,
+		Store,
+		Take,
+	}
 
-	/// <summary>Anti-double-clic Store — même garantie que <see cref="_pendingTakeItemIds"/>.</summary>
-	readonly HashSet<string> _pendingStoreItemIds = new();
+	/// <summary>
+	/// État minimal d'une opération réseau en attente, identifiée par son <see cref="RequestId"/> (jamais
+	/// par le seul <c>InstanceId</c>, voir mission « corrélation par RequestId ») — seulement de quoi
+	/// répondre à trois questions : « à quel <c>InstanceId</c> cette opération s'applique-t-elle », « le
+	/// résultat authoritative est-il arrivé (et avec quel succès) », et pour Store/Take uniquement,
+	/// « la source a-t-elle confirmé la disparition de l'item ». Un Move ne quitte jamais son conteneur
+	/// d'origine — <see cref="SourceGoneConfirmed"/> n'a donc de sens que pour
+	/// <see cref="PendingOperationKind.Store"/>/<see cref="PendingOperationKind.Take"/> (voir
+	/// <see cref="ReconcileSourceDisappearance"/>).
+	/// </summary>
+	sealed class PendingOperation
+	{
+		public string RequestId;
+		public string InstanceId;
+		public PendingOperationKind Kind;
+		public bool ResultReceived;
+		public bool ResultSuccess;
+		public bool SourceGoneConfirmed;
+	}
+
+	/// <summary>
+	/// État complet des opérations réseau spatiales en attente (Move joueur/conteneur, Store/Take ciblés
+	/// ou first-fit), indexé par <see cref="PendingOperation.RequestId"/> — jamais par <c>InstanceId"</c>
+	/// seul : une <c>InventoryPage</c> détruite puis recréée (changement d'onglet, fermeture du menu)
+	/// perd son état pending, mais un résultat retardé pour une opération de l'ancienne page ne doit
+	/// jamais pouvoir toucher une nouvelle opération démarrée depuis sur le même <c>InstanceId</c> —
+	/// c'est exactement ce que corrèle <see cref="_pendingRequestIdByInstanceId"/> (verrou par
+	/// <c>InstanceId</c>, séparé de la table par <c>RequestId</c>). Voir <see cref="IsItemOperationPending"/>
+	/// (garde unique) et <see cref="TryRegisterPending"/> (seul point d'ajout aux deux dictionnaires,
+	/// atomique). Une opération n'est retirée des deux dictionnaires qu'après avoir observé les deux
+	/// confirmations nécessaires en cas de succès Store/Take (résultat authoritative **et** disparition
+	/// confirmée de la source) — voir <see cref="MarkResultReceived"/>/<see cref="ReconcileSourceDisappearance"/>
+	/// — jamais sur la seule disparition du snapshot, qui pourrait précéder la réception du résultat
+	/// correspondant.
+	/// </summary>
+	readonly Dictionary<string, PendingOperation> _pendingByRequestId = new();
+
+	/// <summary>
+	/// Verrou unique par <c>InstanceId</c> : quel <see cref="PendingOperation.RequestId"/> est
+	/// actuellement actif pour cet item, s'il y en a un — jamais plus d'une opération active à la fois
+	/// par item (voir <see cref="TryRegisterPending"/>). Distinct de <see cref="_pendingByRequestId"/> :
+	/// cette table ne connaît que l'opération *active*, tandis qu'un résultat retardé pour un
+	/// <c>RequestId</c> qui n'est plus la valeur actuelle ici est un résultat ancien/orphelin, jamais
+	/// appliqué (voir <see cref="MarkResultReceived"/>).
+	/// </summary>
+	readonly Dictionary<string, string> _pendingRequestIdByInstanceId = new();
+
+	/// <summary>
+	/// Garde unique à utiliser par tout point d'entrée démarrant une opération sur un item (drag, bouton
+	/// Store/Take, Drop, Equip, Use, Unequip) — jamais un test dispersé sur plusieurs collections.
+	/// </summary>
+	bool IsItemOperationPending( string instanceId ) => !string.IsNullOrEmpty( instanceId ) && _pendingRequestIdByInstanceId.ContainsKey( instanceId );
+
+	/// <summary>
+	/// Seul point d'ajout à <see cref="_pendingByRequestId"/>/<see cref="_pendingRequestIdByInstanceId"/>
+	/// — retourne <c>false</c> (et n'ajoute rien) si l'item a déjà une opération active, combinant
+	/// l'ignorance d'une seconde tentative et l'enregistrement en une seule opération atomique (même
+	/// intention que l'ancien <c>HashSet.Add</c>). Génère elle-même un nouveau <c>RequestId</c>
+	/// (<c>Guid.NewGuid().ToString("N")</c>) — jamais fourni par l'appelant, jamais généré côté host :
+	/// c'est l'identité de CETTE demande cliente précise, qui survit logiquement à la destruction de
+	/// cette <c>InventoryPage</c> même si l'état pending local, lui, ne survit pas (voir doc de
+	/// <see cref="_pendingByRequestId"/>).
+	/// </summary>
+	bool TryRegisterPending( string instanceId, PendingOperationKind kind, out string requestId )
+	{
+		if ( string.IsNullOrEmpty( instanceId ) || _pendingRequestIdByInstanceId.ContainsKey( instanceId ) )
+		{
+			requestId = null;
+			return false;
+		}
+
+		requestId = Guid.NewGuid().ToString( "N" );
+		_pendingByRequestId[requestId] = new PendingOperation { RequestId = requestId, InstanceId = instanceId, Kind = kind };
+		_pendingRequestIdByInstanceId[instanceId] = requestId;
+		return true;
+	}
+
+	/// <summary>
+	/// Retire une opération terminée des deux dictionnaires — seul point de retrait, appelé uniquement
+	/// depuis <see cref="MarkResultReceived"/>/<see cref="ReconcileSourceDisappearance"/> une fois les
+	/// conditions de libération remplies. Ne retire <see cref="_pendingRequestIdByInstanceId"/> que si
+	/// l'entrée y référence encore exactement ce <paramref name="requestId"/> (mission section 4) — une
+	/// opération plus récente sur le même <c>InstanceId</c> a pu entre-temps devenir la valeur active,
+	/// auquel cas elle ne doit jamais être touchée par la terminaison d'une opération plus ancienne.
+	/// </summary>
+	void ReleasePending( string requestId, string instanceId )
+	{
+		_pendingByRequestId.Remove( requestId );
+
+		if ( _pendingRequestIdByInstanceId.TryGetValue( instanceId, out var activeRequestId ) && activeRequestId == requestId )
+			_pendingRequestIdByInstanceId.Remove( instanceId );
+	}
+
+	/// <summary>
+	/// Réconcilie la réception d'un résultat authoritative (Move, Store ou Take, first-fit ou ciblé) —
+	/// point d'entrée unique quel que soit le canal réseau d'origine (voir call sites). Un résultat dont
+	/// le <paramref name="requestId"/> ne correspond à aucune entrée de <see cref="_pendingByRequestId"/>,
+	/// dont l'<c>InstanceId</c> mémorisé diffère de <paramref name="instanceId"/>, ou dont le
+	/// <c>RequestId</c> n'est plus la valeur active dans <see cref="_pendingRequestIdByInstanceId"/> pour
+	/// cet <c>InstanceId</c>, est un résultat ancien ou orphelin (page précédente détruite, ou déjà
+	/// traité) : il est ignoré sans modifier ni libérer quoi que ce soit — jamais utilisé pour libérer
+	/// une opération plus récente qui partagerait le même <c>InstanceId</c> (voir mission M1-T3). En
+	/// échec, libère immédiatement l'opération correspondante (voir mission section 3). En succès sur un
+	/// Move, libère immédiatement (l'item ne quitte jamais son conteneur). En succès sur un Store/Take,
+	/// ne libère que si la disparition de la source a déjà été confirmée par ailleurs (voir
+	/// <see cref="ReconcileSourceDisappearance"/>) — sinon le drapeau de succès est mémorisé et la
+	/// libération est différée jusqu'à cette confirmation, quel que soit l'ordre d'arrivée entre résultat
+	/// et snapshot.
+	/// </summary>
+	void MarkResultReceived( string requestId, string instanceId, bool success )
+	{
+		if ( string.IsNullOrEmpty( requestId ) || !_pendingByRequestId.TryGetValue( requestId, out var op ) )
+			return;
+
+		if ( op.InstanceId != instanceId )
+			return;
+
+		if ( !_pendingRequestIdByInstanceId.TryGetValue( instanceId, out var activeRequestId ) || activeRequestId != requestId )
+			return;
+
+		op.ResultReceived = true;
+		op.ResultSuccess = success;
+
+		if ( !success || op.Kind == PendingOperationKind.Move || op.SourceGoneConfirmed )
+			ReleasePending( requestId, instanceId );
+	}
+
+	/// <summary>
+	/// Appelée depuis <see cref="Tick"/> : détecte, pour chaque opération Store/Take encore en attente,
+	/// si l'item a disparu de sa source attendue (inventaire joueur pour Store, conteneur pour Take) —
+	/// jamais utilisée seule comme preuve de succès (voir mission section 3 : l'absence visuelle ne
+	/// suffit plus, il faut aussi le résultat authoritative). C'est une observation purement locale, qui
+	/// ne porte naturellement aucun <c>RequestId</c> — elle ne peut donc marquer
+	/// <see cref="PendingOperation.SourceGoneConfirmed"/> que pour l'opération actuellement *active* pour
+	/// cet <c>InstanceId</c> (<see cref="_pendingRequestIdByInstanceId"/>), jamais pour une opération plus
+	/// ancienne déjà remplacée. Ne libère l'opération que si le résultat de succès a déjà été reçu pour
+	/// CE <c>RequestId</c> précis ; sinon mémorise seulement la confirmation pour un traitement différé
+	/// par <see cref="MarkResultReceived"/> lorsque le résultat arrivera — une disparition observée ne
+	/// vaut jamais, à elle seule, confirmation du succès d'une opération dont le résultat n'est pas
+	/// encore arrivé. Les Move ne sont jamais concernés (l'item reste dans le même conteneur).
+	/// </summary>
+	void ReconcileSourceDisappearance()
+	{
+		if ( _pendingRequestIdByInstanceId.Count == 0 )
+			return;
+
+		var inventory = Inventory;
+		bool containerAvailable = _container.IsValid() && _container.IsLocalSessionOpen;
+
+		foreach ( var instanceId in _pendingRequestIdByInstanceId.Keys.ToList() )
+		{
+			var requestId = _pendingRequestIdByInstanceId[instanceId];
+			if ( !_pendingByRequestId.TryGetValue( requestId, out var op ) )
+				continue;
+
+			if ( op.SourceGoneConfirmed )
+				continue;
+
+			bool gone = op.Kind switch
+			{
+				PendingOperationKind.Store => inventory is not null && !inventory.LocalEntries.Any( e => e.InstanceId == instanceId ),
+				PendingOperationKind.Take => containerAvailable && !_container.LocalEntries.Any( e => e.InstanceId == instanceId ),
+				_ => false,
+			};
+
+			if ( !gone )
+				continue;
+
+			op.SourceGoneConfirmed = true;
+
+			if ( op.ResultReceived && op.ResultSuccess )
+				ReleasePending( requestId, instanceId );
+		}
+	}
+
+	/// <summary>Panel de la grille joueur — capturé via <c>@ref</c> pour la résolution géométrique du drag (voir <see cref="TryBeginPressCandidate"/>/<see cref="ResolveDragTarget"/>).</summary>
+	InventoryGrid PlayerGridPanel { get; set; }
+
+	/// <summary>Panel de la grille du conteneur ouvert — mêmes garanties que <see cref="PlayerGridPanel"/>.</summary>
+	InventoryGrid ContainerGridPanel { get; set; }
+
+	/// <summary>
+	/// État transitoire d'un drag local en cours — jamais un manager global, jamais persisté au-delà de
+	/// la durée de vie de cette instance d'<c>InventoryPage</c> (détruite/recréée à chaque changement
+	/// d'onglet ou fermeture du menu, voir GameMenu.razor). L'identité canonique reste
+	/// <see cref="InstanceId"/>, jamais une référence fragile vers une entrée de liste Razor.
+	/// </summary>
+	sealed class DragState
+	{
+		public bool FromContainer;
+		public string InstanceId;
+		public string ItemId;
+		public ItemDefinition Definition;
+		public int BaseWidth;
+		public int BaseHeight;
+		public bool IsRotated;
+
+		/// <summary>
+		/// Position/rotation source observées au tout début du drag (jamais mutées ensuite, y compris
+		/// si l'utilisateur tourne l'item pendant le drag — voir <see cref="IsRotated"/> pour la
+		/// rotation courante) — transmises telles quelles au host comme précondition de fraîcheur (voir
+		/// mission section 2 : <c>ExpectedSourceX/Y/Rotated</c>). Le host les revalide contre son propre
+		/// état canonique avant toute mutation ; ces champs ne sont jamais eux-mêmes une preuve
+		/// d'autorisation, seulement l'état que ce client croyait vrai au moment du drag.
+		/// </summary>
+		public int OriginX;
+		public int OriginY;
+		public bool OriginRotated;
+
+		public int GrabDX;
+		public int GrabDY;
+		public Vector2 PressScreenPosition;
+		public bool ThresholdExceeded;
+		public bool HasTarget;
+		public bool TargetIsContainer;
+		public int TargetX;
+		public int TargetY;
+		public bool TargetValid;
+	}
+
+	/// <summary>Seuil de déplacement (pixels écran) avant qu'un appui ne soit promu en drag réel — voir <see cref="UpdateDragState"/>. Nommé explicitement (mission section 7).</summary>
+	const float DragThresholdPixels = 6f;
+
+	DragState _drag;
+
+	/// <summary>Dernier <see cref="PlayerInventoryComponent"/> observé, pour réinitialiser le suivi de <see cref="PlayerInventoryComponent.LocalMoveResultSequence"/> si le pawn local change (reconnexion).</summary>
+	PlayerInventoryComponent _lastSeenInventoryForMove;
+
+	int _lastSeenPlayerMoveResultSequence;
+
+	int _lastSeenContainerMoveResultSequence;
 
 	/// <summary>
 	/// Sélection locale dans la grille joueur — un <c>InstanceId</c>, jamais un index de liste. Pure
@@ -211,6 +445,9 @@
 	public override void Tick()
 	{
 		UpdateContainerState();
+		UpdatePlayerMoveResultState();
+		ReconcileSourceDisappearance();
+		UpdateDragState();
 
 		int hash = ComputeHash();
 		if ( hash == _lastObservedHash )
@@ -227,6 +464,7 @@
 		{
 			_container = current;
 			_lastSeenTransferResultSequence = _container.IsValid() ? _container.LocalTransferResultSequence : 0;
+			_lastSeenContainerMoveResultSequence = _container.IsValid() ? _container.LocalMoveResultSequence : 0;
 			ClearPendingState();
 			_selectedContainerItemId = null;
 		}
@@ -239,33 +477,21 @@
 			return;
 		}
 
-		// Résultat de transfert le plus récent — retire immédiatement le pending correspondant en cas
-		// d'échec. En cas de succès, le pending n'est retiré que lorsque l'objet disparaît réellement
-		// du snapshot concerné (ci-dessous).
+		// Résultat de transfert le plus récent (Take/Store, first-fit ou ciblé) — voir
+		// MarkResultReceived pour le cycle de vie exact (succès Store/Take différé jusqu'à confirmation
+		// de la disparition de la source, voir ReconcileSourceDisappearance).
 		if ( _container.LocalTransferResultSequence != _lastSeenTransferResultSequence )
 		{
 			_lastSeenTransferResultSequence = _container.LocalTransferResultSequence;
 			var result = _container.LastTransferResult;
-
-			if ( !result.Success )
-			{
-				if ( result.Direction == WorldContainerTransferDirection.Take )
-					_pendingTakeItemIds.Remove( result.InstanceId );
-				else
-					_pendingStoreItemIds.Remove( result.InstanceId );
-			}
+			MarkResultReceived( result.RequestId, result.InstanceId, result.Success );
 		}
 
-		if ( _pendingTakeItemIds.Count > 0 )
-			_pendingTakeItemIds.RemoveWhere( id => !_container.LocalEntries.Any( e => e.InstanceId == id ) );
-
-		if ( _pendingStoreItemIds.Count > 0 )
+		if ( _container.LocalMoveResultSequence != _lastSeenContainerMoveResultSequence )
 		{
-			var inventory = Inventory;
-			if ( inventory is null )
-				_pendingStoreItemIds.Clear();
-			else
-				_pendingStoreItemIds.RemoveWhere( id => !inventory.LocalEntries.Any( e => e.InstanceId == id ) );
+			_lastSeenContainerMoveResultSequence = _container.LocalMoveResultSequence;
+			var moveResult = _container.LastMoveResult;
+			MarkResultReceived( moveResult.RequestId, moveResult.InstanceId, moveResult.Success );
 		}
 
 		if ( _selectedContainerItemId is not null && !_container.LocalEntries.Any( e => e.InstanceId == _selectedContainerItemId ) )
@@ -286,8 +512,36 @@
 
 	void ClearPendingState()
 	{
-		_pendingTakeItemIds.Clear();
-		_pendingStoreItemIds.Clear();
+		_pendingByRequestId.Clear();
+		_pendingRequestIdByInstanceId.Clear();
+	}
+
+	/// <summary>
+	/// Réconcilie le résultat du dernier déplacement interne joueur (voir
+	/// <see cref="PlayerInventoryComponent.LocalMoveResultSequence"/>) — distinct de
+	/// <see cref="UpdateContainerState"/> : le pawn local (et donc son <see cref="PlayerInventoryComponent"/>)
+	/// n'a pas la même durée de vie que le conteneur monde ouvert, suivi indépendamment ici.
+	/// </summary>
+	void UpdatePlayerMoveResultState()
+	{
+		var inventory = Inventory;
+
+		if ( inventory != _lastSeenInventoryForMove )
+		{
+			_lastSeenInventoryForMove = inventory;
+			_lastSeenPlayerMoveResultSequence = inventory?.LocalMoveResultSequence ?? 0;
+			return;
+		}
+
+		if ( inventory is null )
+			return;
+
+		if ( inventory.LocalMoveResultSequence != _lastSeenPlayerMoveResultSequence )
+		{
+			_lastSeenPlayerMoveResultSequence = inventory.LocalMoveResultSequence;
+			var moveResult = inventory.LastMoveResult;
+			MarkResultReceived( moveResult.RequestId, moveResult.InstanceId, moveResult.Success );
+		}
 	}
 
 	int ComputeHash()
@@ -343,14 +597,33 @@
 			}
 		}
 
-		foreach ( var id in _pendingTakeItemIds )
-			hash.Add( id );
-
-		foreach ( var id in _pendingStoreItemIds )
-			hash.Add( id );
+		foreach ( var kv in _pendingByRequestId )
+		{
+			hash.Add( kv.Key );
+			hash.Add( kv.Value.InstanceId );
+			hash.Add( kv.Value.Kind );
+			hash.Add( kv.Value.ResultReceived );
+			hash.Add( kv.Value.ResultSuccess );
+			hash.Add( kv.Value.SourceGoneConfirmed );
+		}
 
 		hash.Add( _selectedPlayerItemId );
 		hash.Add( _selectedContainerItemId );
+
+		// L'aperçu fantôme doit se redessiner à chaque frame où sa position/validité change pendant un
+		// drag actif — sans ces champs, Tick() ne détecterait aucun changement entre deux positions de
+		// pointeur différentes tant qu'aucune autre donnée (snapshot, sélection...) ne varie.
+		if ( _drag is not null )
+		{
+			hash.Add( _drag.InstanceId );
+			hash.Add( _drag.ThresholdExceeded );
+			hash.Add( _drag.HasTarget );
+			hash.Add( _drag.TargetIsContainer );
+			hash.Add( _drag.TargetX );
+			hash.Add( _drag.TargetY );
+			hash.Add( _drag.TargetValid );
+			hash.Add( _drag.IsRotated );
+		}
 
 		return hash.ToHashCode();
 	}
@@ -478,7 +751,7 @@
 				entry.IsRotated ? defHeight : defWidth,
 				entry.IsRotated ? defWidth : defHeight,
 				entry.IsRotated,
-				_pendingStoreItemIds.Contains( entry.InstanceId ),
+				IsItemOperationPending( entry.InstanceId ),
 				entry.InstanceId == _selectedPlayerItemId
 			) );
 		}
@@ -512,7 +785,7 @@
 				entry.IsRotated ? defHeight : defWidth,
 				entry.IsRotated ? defWidth : defHeight,
 				entry.IsRotated,
-				_pendingTakeItemIds.Contains( entry.InstanceId ),
+				IsItemOperationPending( entry.InstanceId ),
 				entry.InstanceId == _selectedContainerItemId
 			) );
 		}
@@ -527,26 +800,56 @@
 
 	// Ne transmet que l'InstanceId/le slot sélectionné dans le snapshot local — aucune donnée métier
 	// (définition, quantité, position) envoyée ; le host revalide tout. Mêmes points d'entrée déjà
-	// validés par test réel.
-	void RequestDrop( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemDrop?.RequestDrop( instanceId );
+	// validés par test réel. Gardés par IsItemOperationPending (voir mission section 3, garde globale) :
+	// tant qu'une opération spatiale (Move/Store/Take) est en attente sur cet item, Drop/Equip/Use ne
+	// doivent pas pouvoir démarrer une opération concurrente sur le même InstanceId — ces quatre actions
+	// ne portent en revanche pas leur propre suivi pending (inchangé, hors périmètre de cette passe).
+	void RequestDrop( string instanceId )
+	{
+		if ( IsItemOperationPending( instanceId ) )
+			return;
 
-	void RequestEquip( string instanceId, EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestEquip( instanceId, slot );
+		KodokuPlayerComponent.Local?.PlayerItemDrop?.RequestDrop( instanceId );
+	}
 
-	void RequestUse( string instanceId ) => KodokuPlayerComponent.Local?.PlayerItemUse?.RequestUse( instanceId );
+	void RequestEquip( string instanceId, EquipmentSlotType slot )
+	{
+		if ( IsItemOperationPending( instanceId ) )
+			return;
 
-	void RequestUnequip( EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestUnequip( slot );
+		KodokuPlayerComponent.Local?.PlayerInventory?.RequestEquip( instanceId, slot );
+	}
 
-	// Anti-double-clic : HashSet.Add retourne false si déjà pending — combine l'ignorance d'un second
-	// clic et l'enregistrement du pending en une seule opération atomique.
+	void RequestUse( string instanceId )
+	{
+		if ( IsItemOperationPending( instanceId ) )
+			return;
+
+		KodokuPlayerComponent.Local?.PlayerItemUse?.RequestUse( instanceId );
+	}
+
+	void RequestUnequip( EquipmentSlotType slot )
+	{
+		var inventory = Inventory;
+		var equipped = inventory?.LocalEquipment.FirstOrDefault( e => e.Slot == slot );
+
+		if ( equipped is { InstanceId: { } equippedInstanceId } && IsItemOperationPending( equippedInstanceId ) )
+			return;
+
+		inventory?.RequestUnequip( slot );
+	}
+
+	// TryRegisterPending retourne false si déjà pending — combine l'ignorance d'un second clic et
+	// l'enregistrement en une seule opération atomique (même intention que l'ancien HashSet.Add).
 	void OnContainerItemClicked( string instanceId )
 	{
 		if ( !_container.IsValid() )
 			return;
 
-		if ( !_pendingTakeItemIds.Add( instanceId ) )
+		if ( !TryRegisterPending( instanceId, PendingOperationKind.Take, out var requestId ) )
 			return;
 
-		_container.RequestTakeItem( instanceId );
+		_container.RequestTakeItem( requestId, instanceId );
 	}
 
 	void OnPlayerItemClicked( string instanceId )
@@ -554,11 +857,337 @@
 		if ( !_container.IsValid() )
 			return;
 
-		if ( !_pendingStoreItemIds.Add( instanceId ) )
+		if ( !TryRegisterPending( instanceId, PendingOperationKind.Store, out var requestId ) )
 			return;
 
-		_container.RequestStoreItem( instanceId );
+		_container.RequestStoreItem( requestId, instanceId );
 	}
 
 	void RequestCloseContainer() => _container?.CloseLocalSessionImmediately();
+
+	// --- Drag-and-drop V1 ---
+	//
+	// Toute la détection de pointeur (down/relâchement/déplacement) est centralisée ici, au niveau de
+	// cette page, plutôt que dans chaque InventoryGrid : un drag doit pouvoir franchir la frontière
+	// entre la grille joueur et celle du conteneur (Store/Take ciblés), et la documentation locale de
+	// Panel.OnMouseMove ("Called when the cursor moves while hovering this panel") ne garantit ce
+	// callback que pour le panel survolé au moment présent — pas nécessairement celui qui a capturé
+	// l'appui initial si le pointeur quitte ses bornes pendant un drag. Mouse.Position (position écran
+	// globale, déjà utilisée ainsi par SliderControl/ColorHueControl dans la bibliothèque du moteur pour
+	// des drags qui dépassent les bornes du panel d'origine) reste en revanche fiable en toutes
+	// circonstances, interrogée ici à chaque frame (Tick(), voir UpdateDragState) plutôt que dans
+	// OnMouseMove. Le relâchement est détecté par la perte de HasActive (pseudo-classe :active, déjà
+	// utilisée pour le même usage par ColorHueControl) plutôt qu'un OnMouseUp dont le ciblage exact
+	// n'est pas garanti dans ce même scénario multi-panel.
+
+	protected override void OnMouseDown( MousePanelEvent e )
+	{
+		base.OnMouseDown( e );
+
+		if ( e.MouseButton == MouseButtons.Right )
+		{
+			CancelDrag();
+			return;
+		}
+
+		if ( e.MouseButton != MouseButtons.Left || _drag is not null )
+			return;
+
+		TryBeginPressCandidate();
+	}
+
+	/// <summary>
+	/// Détecte un appui sur un item de l'une ou l'autre grille (position écran globale, voir
+	/// commentaire de section ci-dessus) et enregistre un candidat de drag — jamais encore un drag réel
+	/// tant que <see cref="DragThresholdPixels"/> n'est pas dépassé (voir <see cref="UpdateDragState"/>).
+	/// Aucune RPC n'est jamais envoyée depuis cette méthode.
+	/// </summary>
+	void TryBeginPressCandidate()
+	{
+		var screenPos = Mouse.Position;
+
+		if ( PlayerGridPanel is not null && PlayerGridPanel.TryGetCellAtScreenPosition( screenPos, out var px, out var py ) )
+		{
+			var entry = FindPlayerEntryAtCell( px, py );
+			if ( entry is { } playerEntry )
+			{
+				BeginPressCandidate( fromContainer: false, playerEntry.InstanceId, playerEntry.ItemId, playerEntry.X, playerEntry.Y, playerEntry.IsRotated, px, py, screenPos );
+				return;
+			}
+		}
+
+		if ( _container.IsValid() && _container.IsLocalSessionOpen && ContainerGridPanel is not null && ContainerGridPanel.TryGetCellAtScreenPosition( screenPos, out var cx, out var cy ) )
+		{
+			var entry = FindContainerEntryAtCell( cx, cy );
+			if ( entry is { } containerEntry )
+				BeginPressCandidate( fromContainer: true, containerEntry.InstanceId, containerEntry.ItemId, containerEntry.X, containerEntry.Y, containerEntry.IsRotated, cx, cy, screenPos );
+		}
+	}
+
+	void BeginPressCandidate( bool fromContainer, string instanceId, string itemId, int originX, int originY, bool isRotated, int pressCellX, int pressCellY, Vector2 screenPos )
+	{
+		// Un item ayant déjà une opération réseau en attente (bouton, Drop/Equip/Use, ou drag précédent)
+		// ne peut pas démarrer un second drag concurrent local (voir mission section 3, garde globale).
+		if ( IsItemOperationPending( instanceId ) )
+			return;
+
+		EnsureDefinitionCache();
+		var definition = ResolveDefinition( itemId );
+
+		_drag = new DragState
+		{
+			FromContainer = fromContainer,
+			InstanceId = instanceId,
+			ItemId = itemId,
+			Definition = definition,
+			BaseWidth = definition?.GridWidth ?? 1,
+			BaseHeight = definition?.GridHeight ?? 1,
+			IsRotated = isRotated,
+			OriginX = originX,
+			OriginY = originY,
+			OriginRotated = isRotated,
+			GrabDX = pressCellX - originX,
+			GrabDY = pressCellY - originY,
+			PressScreenPosition = screenPos,
+			ThresholdExceeded = false,
+		};
+	}
+
+	InventorySnapshotEntry? FindPlayerEntryAtCell( int x, int y )
+	{
+		var inventory = Inventory;
+		if ( inventory is null )
+			return null;
+
+		EnsureDefinitionCache();
+
+		foreach ( var entry in inventory.LocalEntries )
+		{
+			var definition = ResolveDefinition( entry.ItemId );
+			int w = entry.IsRotated ? ( definition?.GridHeight ?? 1 ) : ( definition?.GridWidth ?? 1 );
+			int h = entry.IsRotated ? ( definition?.GridWidth ?? 1 ) : ( definition?.GridHeight ?? 1 );
+
+			if ( x >= entry.X && x < entry.X + w && y >= entry.Y && y < entry.Y + h )
+				return entry;
+		}
+
+		return null;
+	}
+
+	WorldContainerSnapshotEntry? FindContainerEntryAtCell( int x, int y )
+	{
+		if ( !_container.IsValid() )
+			return null;
+
+		EnsureDefinitionCache();
+
+		foreach ( var entry in _container.LocalEntries )
+		{
+			var definition = ResolveDefinition( entry.ItemId );
+			int w = entry.IsRotated ? ( definition?.GridHeight ?? 1 ) : ( definition?.GridWidth ?? 1 );
+			int h = entry.IsRotated ? ( definition?.GridWidth ?? 1 ) : ( definition?.GridHeight ?? 1 );
+
+			if ( x >= entry.X && x < entry.X + w && y >= entry.Y && y < entry.Y + h )
+				return entry;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Appelée depuis <see cref="Tick"/> : fait progresser un candidat/drag en cours d'une frame à
+	/// l'autre — seuil de déclenchement, rotation, résolution de la cellule cible, relâchement.
+	/// </summary>
+	void UpdateDragState()
+	{
+		if ( _drag is null )
+			return;
+
+		// Annulation si la source a disparu (item pris ailleurs, conteneur fermé/invalidé entre-temps) —
+		// voir mission D1-Q. Vérifié à chaque frame, pas seulement au début du drag.
+		if ( _drag.FromContainer )
+		{
+			if ( !_container.IsValid() || !_container.IsLocalSessionOpen || FindContainerEntry( _drag.InstanceId ) is null )
+			{
+				_drag = null;
+				return;
+			}
+		}
+		else if ( FindPlayerEntry( _drag.InstanceId ) is null )
+		{
+			_drag = null;
+			return;
+		}
+
+		// Relâchement détecté par la perte de :active (voir commentaire de section) plutôt qu'un
+		// OnMouseUp dont le ciblage n'est pas garanti dans ce scénario multi-panel.
+		if ( !HasActive )
+		{
+			if ( _drag.ThresholdExceeded )
+				ReleaseDrag();
+			else
+				_drag = null; // clic simple sous le seuil — la sélection est déjà gérée par onclick, rien d'autre à faire ici
+
+			return;
+		}
+
+		var screenPos = Mouse.Position;
+
+		if ( !_drag.ThresholdExceeded )
+		{
+			if ( ( screenPos - _drag.PressScreenPosition ).Length < DragThresholdPixels )
+				return;
+
+			_drag.ThresholdExceeded = true;
+		}
+
+		if ( Input.Pressed( "InventoryRotate" ) && ( _drag.Definition?.CanRotate ?? false ) )
+			_drag.IsRotated = !_drag.IsRotated;
+
+		ResolveDragTarget( screenPos );
+	}
+
+	void ResolveDragTarget( Vector2 screenPos )
+	{
+		int width = _drag.IsRotated ? _drag.BaseHeight : _drag.BaseWidth;
+		int height = _drag.IsRotated ? _drag.BaseWidth : _drag.BaseHeight;
+
+		if ( PlayerGridPanel is not null && PlayerGridPanel.TryGetCellAtScreenPosition( screenPos, out var px, out var py ) )
+		{
+			_drag.HasTarget = true;
+			_drag.TargetIsContainer = false;
+			_drag.TargetX = px - _drag.GrabDX;
+			_drag.TargetY = py - _drag.GrabDY;
+			_drag.TargetValid = IsPlayerPlacementValid( _drag.InstanceId, _drag.TargetX, _drag.TargetY, width, height );
+			return;
+		}
+
+		if ( _container.IsValid() && _container.IsLocalSessionOpen && ContainerGridPanel is not null && ContainerGridPanel.TryGetCellAtScreenPosition( screenPos, out var cx, out var cy ) )
+		{
+			_drag.HasTarget = true;
+			_drag.TargetIsContainer = true;
+			_drag.TargetX = cx - _drag.GrabDX;
+			_drag.TargetY = cy - _drag.GrabDY;
+			_drag.TargetValid = IsContainerPlacementValid( _drag.InstanceId, _drag.TargetX, _drag.TargetY, width, height );
+			return;
+		}
+
+		_drag.HasTarget = false;
+	}
+
+	/// <summary>
+	/// Validation locale indicative uniquement (voir mission section 9) — guide l'utilisateur, ne
+	/// remplace jamais la validation host. Fondée sur le dernier snapshot local reçu, qui peut être
+	/// périmé au moment où le host traite réellement la requête.
+	/// </summary>
+	bool IsPlayerPlacementValid( string instanceId, int x, int y, int width, int height )
+	{
+		var inventory = Inventory;
+		if ( inventory is null )
+			return false;
+
+		if ( x < 0 || y < 0 || x + width > inventory.Width || y + height > inventory.Height )
+			return false;
+
+		foreach ( var entry in inventory.LocalEntries )
+		{
+			if ( entry.InstanceId == instanceId )
+				continue;
+
+			var definition = ResolveDefinition( entry.ItemId );
+			int w = entry.IsRotated ? ( definition?.GridHeight ?? 1 ) : ( definition?.GridWidth ?? 1 );
+			int h = entry.IsRotated ? ( definition?.GridWidth ?? 1 ) : ( definition?.GridHeight ?? 1 );
+
+			if ( x < entry.X + w && entry.X < x + width && y < entry.Y + h && entry.Y < y + height )
+				return false;
+		}
+
+		return true;
+	}
+
+	bool IsContainerPlacementValid( string instanceId, int x, int y, int width, int height )
+	{
+		if ( !_container.IsValid() )
+			return false;
+
+		if ( x < 0 || y < 0 || x + width > _container.LocalWidth || y + height > _container.LocalHeight )
+			return false;
+
+		foreach ( var entry in _container.LocalEntries )
+		{
+			if ( entry.InstanceId == instanceId )
+				continue;
+
+			var definition = ResolveDefinition( entry.ItemId );
+			int w = entry.IsRotated ? ( definition?.GridHeight ?? 1 ) : ( definition?.GridWidth ?? 1 );
+			int h = entry.IsRotated ? ( definition?.GridWidth ?? 1 ) : ( definition?.GridHeight ?? 1 );
+
+			if ( x < entry.X + w && entry.X < x + width && y < entry.Y + h && entry.Y < y + height )
+				return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Termine un drag ayant dépassé le seuil — envoie au plus une requête authoritative, seulement si
+	/// relâché sur une cible valide (indicative) ; sinon aucune RPC, l'item reste à sa position
+	/// canonique (voir mission section 9 : le client accepte qu'un aperçu vert soit finalement refusé,
+	/// mais ici il n'est même pas envoyé si l'aperçu local est déjà rouge/hors cible).
+	/// </summary>
+	void ReleaseDrag()
+	{
+		var drag = _drag;
+		_drag = null;
+
+		if ( !drag.HasTarget || !drag.TargetValid )
+			return;
+
+		if ( !drag.FromContainer && !drag.TargetIsContainer )
+		{
+			if ( TryRegisterPending( drag.InstanceId, PendingOperationKind.Move, out var requestId ) )
+				KodokuPlayerComponent.Local?.PlayerInventory?.RequestMoveItem( requestId, drag.InstanceId, drag.TargetX, drag.TargetY, drag.IsRotated, drag.OriginX, drag.OriginY, drag.OriginRotated );
+		}
+		else if ( drag.FromContainer && drag.TargetIsContainer )
+		{
+			if ( _container.IsValid() && TryRegisterPending( drag.InstanceId, PendingOperationKind.Move, out var requestId ) )
+				_container.RequestMoveItem( requestId, drag.InstanceId, drag.TargetX, drag.TargetY, drag.IsRotated, drag.OriginX, drag.OriginY, drag.OriginRotated );
+		}
+		else if ( !drag.FromContainer )
+		{
+			if ( _container.IsValid() && TryRegisterPending( drag.InstanceId, PendingOperationKind.Store, out var requestId ) )
+				_container.RequestStoreItemAt( requestId, drag.InstanceId, drag.TargetX, drag.TargetY, drag.IsRotated, drag.OriginX, drag.OriginY, drag.OriginRotated );
+		}
+		else
+		{
+			if ( _container.IsValid() && TryRegisterPending( drag.InstanceId, PendingOperationKind.Take, out var requestId ) )
+				_container.RequestTakeItemAt( requestId, drag.InstanceId, drag.TargetX, drag.TargetY, drag.IsRotated, drag.OriginX, drag.OriginY, drag.OriginRotated );
+		}
+	}
+
+	/// <summary>Annulation locale pure (Escape/clic droit/etc.) — jamais de RPC envoyée avant relâchement, donc rien à défaire côté réseau.</summary>
+	void CancelDrag() => _drag = null;
+
+	InventoryGridGhost? GetPlayerGhost()
+	{
+		if ( _drag is null || !_drag.ThresholdExceeded || !_drag.HasTarget || _drag.TargetIsContainer )
+			return null;
+
+		return BuildGhost();
+	}
+
+	InventoryGridGhost? GetContainerGhost()
+	{
+		if ( _drag is null || !_drag.ThresholdExceeded || !_drag.HasTarget || !_drag.TargetIsContainer )
+			return null;
+
+		return BuildGhost();
+	}
+
+	InventoryGridGhost BuildGhost()
+	{
+		int width = _drag.IsRotated ? _drag.BaseHeight : _drag.BaseWidth;
+		int height = _drag.IsRotated ? _drag.BaseWidth : _drag.BaseHeight;
+		return new InventoryGridGhost( _drag.TargetX, _drag.TargetY, width, height, _drag.TargetValid );
+	}
 }

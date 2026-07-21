@@ -478,4 +478,135 @@ public sealed class PlayerInventoryComponent : Component, IGameObjectNetworkEven
 		NotifyMutated();
 		return EquipmentOperationResult.Ok();
 	}
+
+	// --- Déplacement interne (drag-and-drop V1) ---
+
+	/// <summary>
+	/// Cache local non autoritaire du dernier résultat de déplacement interne reçu (voir
+	/// <see cref="ReceiveMoveResult"/>) — accusé de traitement pour la présentation/les tests, jamais
+	/// consulté par le host pour autoriser quoi que ce soit, même esprit que
+	/// <see cref="Kodoku.World.Containers.WorldContainerComponent.LastTransferResult"/>.
+	/// </summary>
+	public PlayerInventoryMoveResult LastMoveResult { get; private set; }
+
+	public bool HasLocalMoveResult { get; private set; }
+
+	/// <summary>Incrémenté à chaque <see cref="ReceiveMoveResult"/> reçu — permet à l'UI de détecter un nouveau résultat même si son contenu est identique au précédent.</summary>
+	public int LocalMoveResultSequence { get; private set; }
+
+	/// <summary>
+	/// Point d'entrée réseau unique du déplacement interne — repositionne (et/ou tourne) un item déjà
+	/// présent dans <see cref="Container"/> vers une nouvelle cellule, sans jamais quitter cette grille
+	/// (voir <see cref="Kodoku.World.Containers.WorldContainerComponent.RequestStoreItemAt"/>/
+	/// <see cref="Kodoku.World.Containers.WorldContainerComponent.RequestTakeItemAt"/> pour un transfert
+	/// entre deux conteneurs). Même schéma d'ownership que <see cref="RequestEquip"/> : la RPC cible
+	/// directement le propre pawn de l'appelant. Ne fait confiance à aucune autre donnée du client que
+	/// l'<c>InstanceId</c> sélectionné dans son propre snapshot local, la cellule/rotation demandées, et
+	/// la position/rotation source observée au début du drag (<paramref name="expectedSourceX"/>/
+	/// <paramref name="expectedSourceY"/>/<paramref name="expectedSourceRotated"/>, revalidées contre le
+	/// placement canonique — jamais une preuve d'autorisation en soi, voir
+	/// <see cref="TryMoveItemAuthoritative"/>) — jamais une définition, une quantité, ou le contenu
+	/// actuel de la cellule visée. <paramref name="requestId"/> est un identifiant de corrélation généré
+	/// et choisi par le client (jamais recalculé côté host) — renvoyé tel quel dans
+	/// <see cref="ReceiveMoveResult"/> pour permettre à l'UI de distinguer ce résultat d'une opération
+	/// plus récente sur le même <c>InstanceId</c> (voir <c>InventoryPage._pendingByRequestId</c>).
+	/// </summary>
+	[Rpc.Host]
+	public void RequestMoveItem( string requestId, string instanceId, int targetX, int targetY, bool rotated, int expectedSourceX, int expectedSourceY, bool expectedSourceRotated )
+	{
+		var caller = Rpc.Caller;
+
+		if ( GameObject.Network.Owner != caller )
+		{
+			Log.Warning( $"[InventoryMove][Fail] '{caller?.DisplayName}' a demandé un déplacement sur '{GameObject.Name}', dont il n'est pas le propriétaire — refusé." );
+			return;
+		}
+
+		var result = TryMoveItemAuthoritative( caller, requestId, instanceId, targetX, targetY, rotated, expectedSourceX, expectedSourceY, expectedSourceRotated );
+
+		if ( !result.Success )
+			Log.Warning( $"[InventoryMove][Fail] '{caller?.DisplayName}' -> '{GameObject.Name}' : instance={instanceId}, reason={result.FailureReason}." );
+
+		ReceiveMoveResult( result.Success, result.RequestId, result.InstanceId, result.FailureReason );
+	}
+
+	/// <summary>
+	/// Transaction métier complète, indépendante de tout transport réseau — même esprit que
+	/// <see cref="TryEquipAuthoritative"/>. Revalide d'abord que le placement canonique courant de
+	/// l'item correspond exactement à la position/rotation source attendue par le client
+	/// (<paramref name="expectedSourceX"/>/<paramref name="expectedSourceY"/>/<paramref name="expectedSourceRotated"/>)
+	/// — sans quoi une seconde requête concurrente fondée sur le même état initial obsolète pourrait
+	/// réussir après une première déjà traitée (voir <see cref="PlayerInventoryMoveFailureReason.StaleSource"/>).
+	/// Cette vérification a lieu avant toute validation de la destination et ne mute jamais rien en cas
+	/// d'échec. La mutation elle-même passe ensuite entièrement par <see cref="InventoryContainer.TryMove"/>,
+	/// déjà atomique (position/rotation actuelle inchangée tant que la cible n'est pas intégralement
+	/// validée) — aucune logique de préflight/rollback séparée n'est nécessaire ici.
+	/// </summary>
+	public PlayerInventoryMoveResult TryMoveItemAuthoritative( Connection requester, string requestId, string instanceId, int targetX, int targetY, bool rotated, int expectedSourceX, int expectedSourceY, bool expectedSourceRotated )
+	{
+		if ( !Networking.IsHost )
+		{
+			Log.Error( $"[InventoryMove][InternalError] TryMoveItemAuthoritative() exécuté hors du host pour '{GameObject.Name}'." );
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.InternalError );
+		}
+
+		var pawn = KodokuPlayerComponent.FindByConnection( Scene, requester );
+		if ( pawn is null || pawn.PlayerController is null )
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.InvalidCaller );
+
+		if ( pawn.GameObject != GameObject )
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.OwnershipRejected );
+
+		if ( Container is null )
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.InvalidCaller );
+
+		if ( !Guid.TryParse( instanceId, out var parsedId ) || parsedId == Guid.Empty )
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.InvalidInstanceId );
+
+		// Précondition de fraîcheur — retrouve d'abord l'état canonique, ne compare jamais une position
+		// fournie par le client sans être passée par cette résolution. Avant toute validation de
+		// destination : une source déjà obsolète n'a pas à savoir si la destination demandée serait par
+		// ailleurs valide.
+		var currentPlacement = Container.GetPlacement( parsedId );
+		if ( currentPlacement is null )
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.ItemNotFound );
+
+		if ( currentPlacement.X != expectedSourceX || currentPlacement.Y != expectedSourceY || currentPlacement.IsRotated != expectedSourceRotated )
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, PlayerInventoryMoveFailureReason.StaleSource );
+
+		var moveResult = Container.TryMove( parsedId, targetX, targetY, rotated );
+		if ( !moveResult.Success )
+		{
+			var reason = moveResult.FailureReason switch
+			{
+				InventoryFailureReason.ItemNotFound => PlayerInventoryMoveFailureReason.ItemNotFound,
+				InventoryFailureReason.OutOfBounds => PlayerInventoryMoveFailureReason.OutOfBounds,
+				InventoryFailureReason.Overlapping => PlayerInventoryMoveFailureReason.Overlapping,
+				InventoryFailureReason.RotationNotAllowed => PlayerInventoryMoveFailureReason.RotationNotAllowed,
+				_ => PlayerInventoryMoveFailureReason.InternalError,
+			};
+			return PlayerInventoryMoveResult.Fail( requestId, instanceId, reason );
+		}
+
+		NotifyMutated();
+		return PlayerInventoryMoveResult.Ok( requestId, instanceId );
+	}
+
+	/// <summary>
+	/// Reçoit le résultat ciblé d'un déplacement interne — exécutée uniquement chez le propriétaire de
+	/// ce pawn (<c>[Rpc.Owner]</c>, même transport que <see cref="ReceiveSnapshot"/>). Alimente
+	/// uniquement <see cref="LastMoveResult"/> (présentation/tests) — jamais une preuve que le snapshot
+	/// de contenu a déjà été appliqué localement (voir <see cref="LocalRevision"/> pour cela).
+	/// <paramref name="requestId"/> est celui transmis par <see cref="RequestMoveItem"/>, jamais recalculé
+	/// ici.
+	/// </summary>
+	[Rpc.Owner]
+	public void ReceiveMoveResult( bool success, string requestId, string instanceId, PlayerInventoryMoveFailureReason failureReason )
+	{
+		LastMoveResult = success
+			? PlayerInventoryMoveResult.Ok( requestId, instanceId )
+			: PlayerInventoryMoveResult.Fail( requestId, instanceId, failureReason );
+		HasLocalMoveResult = true;
+		LocalMoveResultSequence++;
+	}
 }

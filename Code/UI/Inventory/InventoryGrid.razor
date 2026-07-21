@@ -55,6 +55,13 @@
 			</div>
 		}
 	}
+
+	@if ( Ghost is { } ghost )
+	{
+		<div class="ghost @( ghost.IsValid ? "valid" : "invalid" )"
+			style="left: @(CellLeft( ghost.X ))px; top: @(CellTop( ghost.Y ))px; width: @(ItemSizePx( ghost.Width ))px; height: @(ItemSizePx( ghost.Height ))px;">
+		</div>
+	}
 </root>
 
 @code
@@ -84,6 +91,13 @@
 	/// <summary>Espace entre cellules, en pixels.</summary>
 	[Parameter] public int CellGap { get; set; } = 2;
 
+	/// <summary>
+	/// Aperçu fantôme à afficher pendant un drag-and-drop, ou <c>null</c> si aucun drag ne cible
+	/// actuellement cette grille — voir <see cref="InventoryGridGhost"/>. Ce composant ne fait que le
+	/// dessiner, jamais ne décide de sa position ou de sa validité.
+	/// </summary>
+	[Parameter] public InventoryGridGhost? Ghost { get; set; }
+
 	int GridWidthPx => Width <= 0 ? 0 : Width * CellSize + ( Width - 1 ) * CellGap;
 	int GridHeightPx => Height <= 0 ? 0 : Height * CellSize + ( Height - 1 ) * CellGap;
 
@@ -94,4 +108,38 @@
 	// voir InventoryGridItem.Width/Height) : N cellules pleines + (N-1) espaces entre elles, jamais un
 	// simple N * CellSize qui omettrait les gaps internes à l'item.
 	int ItemSizePx( int cells ) => cells * CellSize + ( cells - 1 ) * CellGap;
+
+	/// <summary>
+	/// Convertit une position écran (même espace que <see cref="Sandbox.Mouse.Position"/>) en cellule de
+	/// grille — seule méthode partagée de cette conversion (voir mission section 8 : ne pas dupliquer la
+	/// formule dans plusieurs composants). Utilise <see cref="Sandbox.UI.Panel.Box"/> (bornes écran de
+	/// CE panel, déjà correctes quel que soit le défilement d'un ancêtre <c>.grid-viewport</c> — la boîte
+	/// d'un panel reflète sa position réelle à l'écran, scroll des ancêtres inclus) plutôt que
+	/// <c>MousePanelEvent.LocalPosition</c> : cette méthode doit rester utilisable aussi pendant un drag
+	/// dont le pointeur a quitté les bornes de cette grille (survol d'une grille sœur, voir
+	/// <c>InventoryPage</c>), où seule une position écran globale reste significative. Retourne
+	/// <c>false</c> si la position est en dehors des bornes actuelles de cette grille — l'appelant doit
+	/// alors considérer qu'aucune cellule de cette grille n'est visée, jamais une cellule de bord
+	/// arbitrairement choisie.
+	/// </summary>
+	public bool TryGetCellAtScreenPosition( Vector2 screenPosition, out int cellX, out int cellY )
+	{
+		cellX = 0;
+		cellY = 0;
+
+		var box = Box;
+		float localX = screenPosition.x - box.Left;
+		float localY = screenPosition.y - box.Top;
+
+		if ( localX < 0f || localY < 0f || localX >= box.Right - box.Left || localY >= box.Bottom - box.Top )
+			return false;
+
+		int stride = CellSize + CellGap;
+		if ( stride <= 0 || Width <= 0 || Height <= 0 )
+			return false;
+
+		cellX = Math.Clamp( (int)( localX / stride ), 0, Width - 1 );
+		cellY = Math.Clamp( (int)( localY / stride ), 0, Height - 1 );
+		return true;
+	}
 }
