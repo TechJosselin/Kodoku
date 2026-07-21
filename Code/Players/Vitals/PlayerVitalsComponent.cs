@@ -5,7 +5,13 @@ namespace Kodoku.Player.Vitals;
 /// <summary>
 /// État vital réseau d'un pawn Kodoku (santé, endurance, faim, soif, radiation).
 /// Le host reste l'autorité pour toute modification (ADR-0002) : les valeurs sont
-/// <c>[Sync(SyncFlags.FromHost)]</c>, et les méthodes de mutation ci-dessous sont des
+/// <c>[Sync(SyncFlags.FromHost)]</c> **et** <c>[Property]</c> — éditables depuis l'Inspector,
+/// y compris en Play Mode, pour du réglage/debug rapide sans passer par un item ou une source
+/// de dégâts. Une édition depuis l'Inspector sur le host se propage normalement (même setter,
+/// même clamp) ; la même édition sur un client non-host n'a d'effet que localement et sera
+/// écrasée par la prochaine synchronisation du host — cohérent avec ADR-0002, pas une
+/// régression introduite par cette exposition.
+/// Les méthodes de mutation ci-dessous sont des
 /// appliqueurs autoritaires **sans attribut RPC** — elles ne sont pas un point d'entrée
 /// réseau. Elles doivent être appelées uniquement depuis du code qui s'exécute déjà avec
 /// l'autorité host (une future RPC <c>[Rpc.Host(NetFlags.OwnerOnly)]</c> côté appelant, ou un
@@ -17,15 +23,31 @@ namespace Kodoku.Player.Vitals;
 /// </summary>
 public sealed class PlayerVitalsComponent : Component
 {
-	[Property] public float MaxHealth { get; set; } = 100f;
-	[Property] public float MaxStamina { get; set; } = 100f;
-	[Property] public float MaxHunger { get; set; } = 100f;
-	[Property] public float MaxThirst { get; set; } = 100f;
-	[Property] public float MaxRadiation { get; set; } = 100f;
+	[Group( "Configuration" )]
+	[Property]
+	public float MaxHealth { get; set; } = 100f;
+
+	[Group( "Configuration" )]
+	[Property]
+	public float MaxStamina { get; set; } = 100f;
+
+	[Group( "Configuration" )]
+	[Property]
+	public float MaxHunger { get; set; } = 100f;
+
+	[Group( "Configuration" )]
+	[Property]
+	public float MaxThirst { get; set; } = 100f;
+
+	[Group( "Configuration" )]
+	[Property]
+	public float MaxRadiation { get; set; } = 100f;
 
 	public event Action VitalsChanged;
 
 	float _health = 100f;
+	[Group( "Vitals" )]
+	[Property]
 	[Sync( SyncFlags.FromHost )]
 	public float Health
 	{
@@ -34,6 +56,8 @@ public sealed class PlayerVitalsComponent : Component
 	}
 
 	float _stamina = 100f;
+	[Group( "Vitals" )]
+	[Property]
 	[Sync( SyncFlags.FromHost )]
 	public float Stamina
 	{
@@ -42,6 +66,8 @@ public sealed class PlayerVitalsComponent : Component
 	}
 
 	float _hunger = 100f;
+	[Group( "Vitals" )]
+	[Property]
 	[Sync( SyncFlags.FromHost )]
 	public float Hunger
 	{
@@ -50,6 +76,8 @@ public sealed class PlayerVitalsComponent : Component
 	}
 
 	float _thirst = 100f;
+	[Group( "Vitals" )]
+	[Property]
 	[Sync( SyncFlags.FromHost )]
 	public float Thirst
 	{
@@ -58,6 +86,8 @@ public sealed class PlayerVitalsComponent : Component
 	}
 
 	float _radiation;
+	[Group( "Vitals" )]
+	[Property]
 	[Sync( SyncFlags.FromHost )]
 	public float Radiation
 	{
