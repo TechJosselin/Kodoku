@@ -117,7 +117,7 @@
 			@if ( _container.IsValid() && _container.IsLocalSessionOpen )
 			{
 				<div class="column-title">
-					@_container.GameObject.Name
+					@_container.GameObject.Name — @_container.LocalEntries.Count item(s)
 					<button class="close-button" onclick=@RequestCloseContainer>Close</button>
 				</div>
 
@@ -170,15 +170,15 @@
 	/// <summary>
 	/// Conteneur actuellement affiché dans la 3ème colonne — mis à jour uniquement depuis Tick() par
 	/// comparaison à <see cref="WorldContainerComponent.LocalOpenContainer"/>, jamais lu directement
-	/// ailleurs dans cette classe (même garantie que <see cref="Kodoku.UI.ContainerPanel"/>). Pas
-	/// d'abonnement aux événements <c>LocalContainerOpened</c>/<c>LocalContainerClosed</c> ici : cette
-	/// page est un Panel imbriqué recréé à chaque ouverture/fermeture de GameMenu (contrairement à
-	/// ContainerPanel, un PanelComponent à durée de vie stable) — le polling par Tick évite tout risque
-	/// de fuite d'abonnement ou de double-abonnement lié à ce cycle de vie plus court.
+	/// ailleurs dans cette classe. Pas d'abonnement aux événements
+	/// <c>LocalContainerOpened</c>/<c>LocalContainerClosed</c> ici : cette page est un Panel imbriqué
+	/// recréé à chaque ouverture/fermeture de GameMenu, à durée de vie plus courte qu'un PanelComponent
+	/// stable — le polling par Tick évite tout risque de fuite d'abonnement ou de double-abonnement lié
+	/// à ce cycle de vie plus court.
 	/// </summary>
 	WorldContainerComponent _container;
 
-	/// <summary>Anti-double-clic Take — voir ContainerPanel. Jamais utilisé comme preuve qu'un snapshot a déjà été appliqué.</summary>
+	/// <summary>Anti-double-clic Take. Jamais utilisé comme preuve qu'un snapshot a déjà été appliqué.</summary>
 	readonly HashSet<string> _pendingTakeItemIds = new();
 
 	/// <summary>Anti-double-clic Store — même garantie que <see cref="_pendingTakeItemIds"/>.</summary>
@@ -240,8 +240,8 @@
 		}
 
 		// Résultat de transfert le plus récent — retire immédiatement le pending correspondant en cas
-		// d'échec, même patron que ContainerPanel. En cas de succès, le pending n'est retiré que
-		// lorsque l'objet disparaît réellement du snapshot concerné (ci-dessous).
+		// d'échec. En cas de succès, le pending n'est retiré que lorsque l'objet disparaît réellement
+		// du snapshot concerné (ci-dessous).
 		if ( _container.LocalTransferResultSequence != _lastSeenTransferResultSequence )
 		{
 			_lastSeenTransferResultSequence = _container.LocalTransferResultSequence;
@@ -537,7 +537,7 @@
 	void RequestUnequip( EquipmentSlotType slot ) => KodokuPlayerComponent.Local?.PlayerInventory?.RequestUnequip( slot );
 
 	// Anti-double-clic : HashSet.Add retourne false si déjà pending — combine l'ignorance d'un second
-	// clic et l'enregistrement du pending en une seule opération atomique, même patron que ContainerPanel.
+	// clic et l'enregistrement du pending en une seule opération atomique.
 	void OnContainerItemClicked( string instanceId )
 	{
 		if ( !_container.IsValid() )
