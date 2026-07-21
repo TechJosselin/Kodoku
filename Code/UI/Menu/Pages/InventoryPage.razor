@@ -16,44 +16,39 @@
 			@if ( Inventory is not null )
 			{
 				<div class="column-title">Inventory — @Inventory.LocalItemCount item(s)</div>
-				<div class="entries">
-					@foreach ( var entry in Inventory.LocalEntries )
-					{
-						var definition = ResolveDefinition( entry.ItemId );
-						var instanceId = entry.InstanceId;
 
-						<div class="entry">
-							<div class="icon">
-								@if ( definition is not null && definition.Icon is not null )
-								{
-									<Image Texture="@definition.Icon"></Image>
-								}
-								else
-								{
-									<div class="icon-fallback"></div>
-								}
-							</div>
-							<div class="info">
-								<div class="name">@( definition?.DisplayName ?? entry.ItemId ) <span class="qty">x@( entry.Quantity )</span></div>
-								<div class="meta">(@entry.X,@entry.Y)@( entry.IsRotated ? " R" : "" )</div>
-							</div>
-							<div class="entry-actions">
-								<button class="action-button" onclick=@( () => RequestDrop( instanceId ) )>Drop</button>
-								@if ( definition is not null && definition.EquipmentSlot != EquipmentSlotType.None )
-								{
-									<button class="action-button" onclick=@( () => RequestEquip( instanceId, definition.EquipmentSlot ) )>Equip</button>
-								}
-								@if ( definition is not null && float.IsFinite( definition.ThirstRestoreAmount ) && definition.ThirstRestoreAmount > 0f )
-								{
-									<button class="action-button" onclick=@( () => RequestUse( instanceId ) )>Use</button>
-								}
-								@if ( _container.IsValid() && _container.IsLocalSessionOpen )
-								{
-									bool pending = _pendingStoreItemIds.Contains( instanceId );
-									<button class="action-button @( pending ? "pending" : "" )" onclick=@( () => OnPlayerItemClicked( instanceId ) )>Store</button>
-								}
-							</div>
+				<div class="grid-viewport">
+					<InventoryGrid Width="@Inventory.Width" Height="@Inventory.Height" Items="@BuildPlayerGridItems()" OnItemClicked="@SelectPlayerItem" />
+				</div>
+
+				<div class="actions-panel">
+					@{ var selectedPlayerEntry = FindPlayerEntry( _selectedPlayerItemId ); }
+					@if ( selectedPlayerEntry is { } playerEntry )
+					{
+						var definition = ResolveDefinition( playerEntry.ItemId );
+						var instanceId = playerEntry.InstanceId;
+						bool storePending = _pendingStoreItemIds.Contains( instanceId );
+
+						<div class="selected-info">@( definition?.DisplayName ?? playerEntry.ItemId ) <span class="qty">x@( playerEntry.Quantity )</span></div>
+						<div class="actions">
+							<button class="action-button" onclick=@( () => RequestDrop( instanceId ) )>Drop</button>
+							@if ( definition is not null && definition.EquipmentSlot != EquipmentSlotType.None )
+							{
+								<button class="action-button" onclick=@( () => RequestEquip( instanceId, definition.EquipmentSlot ) )>Equip</button>
+							}
+							@if ( definition is not null && float.IsFinite( definition.ThirstRestoreAmount ) && definition.ThirstRestoreAmount > 0f )
+							{
+								<button class="action-button" onclick=@( () => RequestUse( instanceId ) )>Use</button>
+							}
+							@if ( _container.IsValid() && _container.IsLocalSessionOpen )
+							{
+								<button class="action-button @( storePending ? "pending" : "" )" onclick=@( () => OnPlayerItemClicked( instanceId ) )>Store</button>
+							}
 						</div>
+					}
+					else
+					{
+						<div class="selected-info empty">No item selected</div>
 					}
 				</div>
 			}
@@ -125,33 +120,35 @@
 					@_container.GameObject.Name
 					<button class="close-button" onclick=@RequestCloseContainer>Close</button>
 				</div>
-				<div class="entries">
-					@foreach ( var entry in _container.LocalEntries )
-					{
-						var definition = ResolveDefinition( entry.ItemId );
-						var instanceId = entry.InstanceId;
-						bool pending = _pendingTakeItemIds.Contains( instanceId );
 
-						<div class="entry">
-							<div class="icon">
-								@if ( definition is not null && definition.Icon is not null )
-								{
-									<Image Texture="@definition.Icon"></Image>
-								}
-								else
-								{
-									<div class="icon-fallback"></div>
-								}
-							</div>
-							<div class="info">
-								<div class="name">@( definition?.DisplayName ?? entry.ItemId ) <span class="qty">x@( entry.Quantity )</span></div>
-								<div class="meta">(@entry.X,@entry.Y)@( entry.IsRotated ? " R" : "" )</div>
-							</div>
-							<div class="entry-actions">
-								<button class="action-button @( pending ? "pending" : "" )" onclick=@( () => OnContainerItemClicked( instanceId ) )>Take</button>
-							</div>
+				<div class="grid-viewport">
+					<InventoryGrid Width="@_container.LocalWidth" Height="@_container.LocalHeight" Items="@BuildContainerGridItems()" OnItemClicked="@SelectContainerItem" />
+				</div>
+
+				<div class="actions-panel">
+					@{ var selectedContainerEntry = FindContainerEntry( _selectedContainerItemId ); }
+					@if ( selectedContainerEntry is { } containerEntry )
+					{
+						var definition = ResolveDefinition( containerEntry.ItemId );
+						var instanceId = containerEntry.InstanceId;
+						bool takePending = _pendingTakeItemIds.Contains( instanceId );
+
+						<div class="selected-info">@( definition?.DisplayName ?? containerEntry.ItemId ) <span class="qty">x@( containerEntry.Quantity )</span></div>
+						<div class="actions">
+							<button class="action-button @( takePending ? "pending" : "" )" onclick=@( () => OnContainerItemClicked( instanceId ) )>Take</button>
 						</div>
 					}
+					else
+					{
+						<div class="selected-info empty">No item selected</div>
+					}
+				</div>
+			}
+			else
+			{
+				<div class="page-placeholder">
+					<div class="page-title">Container</div>
+					<div class="page-description">No container open.</div>
 				</div>
 			}
 		</div>
@@ -167,6 +164,8 @@
 	PlayerInventoryComponent Inventory => KodokuPlayerComponent.Local?.PlayerInventory;
 
 	static readonly EquipmentSlotType[] EquipmentSlots = { EquipmentSlotType.Head, EquipmentSlotType.Body };
+
+	static readonly IReadOnlyList<InventoryGridItem> EmptyGridItems = Array.Empty<InventoryGridItem>();
 
 	/// <summary>
 	/// Conteneur actuellement affiché dans la 3ème colonne — mis à jour uniquement depuis Tick() par
@@ -184,6 +183,20 @@
 
 	/// <summary>Anti-double-clic Store — même garantie que <see cref="_pendingTakeItemIds"/>.</summary>
 	readonly HashSet<string> _pendingStoreItemIds = new();
+
+	/// <summary>
+	/// Sélection locale dans la grille joueur — un <c>InstanceId</c>, jamais un index de liste. Pure
+	/// présentation : ne déclenche aucun RPC, n'est jamais un état synchronisé. Vidée automatiquement
+	/// si l'entrée correspondante disparaît du snapshot (voir <see cref="ValidatePlayerSelection"/>).
+	/// </summary>
+	string _selectedPlayerItemId;
+
+	/// <summary>
+	/// Sélection locale dans la grille du conteneur ouvert — mêmes garanties que
+	/// <see cref="_selectedPlayerItemId"/>. Vidée en plus dès que le conteneur affiché change ou se
+	/// ferme (voir <see cref="UpdateContainerState"/>).
+	/// </summary>
+	string _selectedContainerItemId;
 
 	/// <summary>Dernière <see cref="WorldContainerComponent.LocalTransferResultSequence"/> déjà traitée pour <see cref="_container"/>.</summary>
 	int _lastSeenTransferResultSequence;
@@ -215,11 +228,14 @@
 			_container = current;
 			_lastSeenTransferResultSequence = _container.IsValid() ? _container.LocalTransferResultSequence : 0;
 			ClearPendingState();
+			_selectedContainerItemId = null;
 		}
 
 		if ( !_container.IsValid() )
 		{
 			ClearPendingState();
+			_selectedContainerItemId = null;
+			ValidatePlayerSelection();
 			return;
 		}
 
@@ -251,6 +267,21 @@
 			else
 				_pendingStoreItemIds.RemoveWhere( id => !inventory.LocalEntries.Any( e => e.InstanceId == id ) );
 		}
+
+		if ( _selectedContainerItemId is not null && !_container.LocalEntries.Any( e => e.InstanceId == _selectedContainerItemId ) )
+			_selectedContainerItemId = null;
+
+		ValidatePlayerSelection();
+	}
+
+	void ValidatePlayerSelection()
+	{
+		if ( _selectedPlayerItemId is null )
+			return;
+
+		var inventory = Inventory;
+		if ( inventory is null || !inventory.LocalEntries.Any( e => e.InstanceId == _selectedPlayerItemId ) )
+			_selectedPlayerItemId = null;
 	}
 
 	void ClearPendingState()
@@ -269,6 +300,8 @@
 		if ( inventory is not null )
 		{
 			hash.Add( inventory.LocalRevision );
+			hash.Add( inventory.Width );
+			hash.Add( inventory.Height );
 
 			foreach ( var entry in inventory.LocalEntries )
 			{
@@ -296,6 +329,8 @@
 		if ( containerOpen )
 		{
 			hash.Add( _container.LocalRevision );
+			hash.Add( _container.LocalWidth );
+			hash.Add( _container.LocalHeight );
 
 			foreach ( var entry in _container.LocalEntries )
 			{
@@ -314,19 +349,181 @@
 		foreach ( var id in _pendingStoreItemIds )
 			hash.Add( id );
 
+		hash.Add( _selectedPlayerItemId );
+		hash.Add( _selectedContainerItemId );
+
 		return hash.ToHashCode();
 	}
 
 	// Résolution locale d'ItemDefinition depuis l'ItemId brut du snapshot — présentation uniquement
-	// (icône, nom affiché, quel bouton afficher), jamais une validation métier : le host revalide tout
-	// depuis Container/ItemDefinition canoniques. Même patron que ContainerPanel.
+	// (icône, nom affiché, dimensions visuelles, quel bouton afficher), jamais une validation métier :
+	// le host revalide tout depuis Container/ItemDefinition canoniques. Le résultat de
+	// ResourceLibrary.GetAll<ItemDefinition>() est mis en cache plutôt que reconstruit à chaque entrée
+	// et à chaque frame — voir mission section 9.
+	static Dictionary<string, ItemDefinition> _definitionCache;
+	static int _definitionCacheSourceCount = -1;
+
+	/// <summary>
+	/// Reconstruit <see cref="_definitionCache"/> uniquement si le nombre total de ItemDefinition
+	/// connues a changé depuis la dernière reconstruction (ajout/suppression d'un .item, hotload
+	/// éditeur) — jamais inconditionnellement à chaque appel. Un cache figé une seule fois pour toute
+	/// la durée du process aurait servi des références obsolètes après un hotload d'assets en éditeur
+	/// (scénario réel pendant les sessions de test manuelles de ce jalon).
+	///
+	/// Appelée une seule fois par colonne au tout début de <see cref="BuildPlayerGridItems"/> et de
+	/// <see cref="BuildContainerGridItems"/> — jamais depuis <see cref="ResolveDefinition"/> elle-même,
+	/// qui reste une simple lecture de dictionnaire. Dans le rendu Razor de cette page, la colonne
+	/// Inventory (grille + panneau d'actions) et la colonne Equipment sont rendues avant la colonne
+	/// Container, dans cet ordre, en un seul passage synchrone : appeler cette méthode au début de
+	/// BuildPlayerGridItems() garantit donc le cache déjà prêt pour tous les appels ultérieurs de
+	/// ResolveDefinition() dans le même rendu (panneau d'actions joueur, colonne Equipment) sans
+	/// dépendre d'un hook de cycle de vie Razor non confirmé ; BuildContainerGridItems() ré-appelle la
+	/// même garde (idempotente, coût négligeable si déjà à jour) pour rester correcte même si la
+	/// colonne Inventory ne s'est pas rendue (aucun Inventory local, cas rare mais possible).
+	///
+	/// Coût réel par appel : un <c>ResourceLibrary.GetAll&lt;ItemDefinition&gt;().Count()</c> — la
+	/// documentation XML locale de <c>ResourceLibrary.GetAll</c> le décrit comme un accès à des
+	/// « cached resources », donc un index déjà maintenu par le moteur (mis à jour de façon
+	/// incrémentale via <c>IEventListener.OnRegister/OnUnregister</c>), pas un balayage disque ni une
+	/// recompilation à chaque appel. Sans commune mesure avec le <c>FirstOrDefault(predicate)</c> par
+	/// entrée qu'il remplace (voir mission section 9). Invalidation volontairement légère (comptage,
+	/// pas de service/registre dédié) : elle ne protège pas un ItemId renommé en place sans changement
+	/// du nombre total de définitions — risque jugé trop rare pour ce jalon V1 (voir rapport).
+	/// </summary>
+	static void EnsureDefinitionCache()
+	{
+		var known = ResourceLibrary.GetAll<ItemDefinition>();
+		int count = known.Count();
+
+		if ( _definitionCache is not null && count == _definitionCacheSourceCount )
+			return;
+
+		_definitionCache = new Dictionary<string, ItemDefinition>();
+
+		foreach ( var definition in known )
+		{
+			if ( !string.IsNullOrEmpty( definition.ItemId ) )
+				_definitionCache[definition.ItemId] = definition;
+		}
+
+		_definitionCacheSourceCount = count;
+	}
+
+	// Lecture pure de dictionnaire — n'appelle plus EnsureDefinitionCache() elle-même (voir sa doc) :
+	// le cache doit déjà être prêt au moment où cette méthode est appelée.
 	static ItemDefinition ResolveDefinition( string itemId )
 	{
-		if ( string.IsNullOrEmpty( itemId ) )
+		if ( string.IsNullOrEmpty( itemId ) || _definitionCache is null )
 			return null;
 
-		return ResourceLibrary.GetAll<ItemDefinition>().FirstOrDefault( d => d.ItemId == itemId );
+		return _definitionCache.TryGetValue( itemId, out var resolved ) ? resolved : null;
 	}
+
+	InventorySnapshotEntry? FindPlayerEntry( string instanceId )
+	{
+		if ( string.IsNullOrEmpty( instanceId ) || Inventory is null )
+			return null;
+
+		foreach ( var entry in Inventory.LocalEntries )
+		{
+			if ( entry.InstanceId == instanceId )
+				return entry;
+		}
+
+		return null;
+	}
+
+	WorldContainerSnapshotEntry? FindContainerEntry( string instanceId )
+	{
+		if ( string.IsNullOrEmpty( instanceId ) || !_container.IsValid() )
+			return null;
+
+		foreach ( var entry in _container.LocalEntries )
+		{
+			if ( entry.InstanceId == instanceId )
+				return entry;
+		}
+
+		return null;
+	}
+
+	// Construit les entrées de présentation pour InventoryGrid — jamais mis en cache entre deux appels :
+	// n'est invoqué que lors d'une reconstruction Razor réelle (déclenchée par le hash de Tick()), donc
+	// déjà au rythme le plus bas possible sans changement réel. La taille visuelle (Width/Height) est
+	// déjà celle tournée si IsRotated — voir InventoryGridItem.
+	IReadOnlyList<InventoryGridItem> BuildPlayerGridItems()
+	{
+		var inventory = Inventory;
+		if ( inventory is null )
+			return EmptyGridItems;
+
+		EnsureDefinitionCache();
+
+		var items = new List<InventoryGridItem>( inventory.LocalEntries.Count );
+
+		foreach ( var entry in inventory.LocalEntries )
+		{
+			var definition = ResolveDefinition( entry.ItemId );
+			int defWidth = definition?.GridWidth ?? 1;
+			int defHeight = definition?.GridHeight ?? 1;
+
+			items.Add( new InventoryGridItem(
+				entry.InstanceId,
+				entry.ItemId,
+				definition?.DisplayName ?? entry.ItemId,
+				definition?.Icon,
+				entry.Quantity,
+				entry.X,
+				entry.Y,
+				entry.IsRotated ? defHeight : defWidth,
+				entry.IsRotated ? defWidth : defHeight,
+				entry.IsRotated,
+				_pendingStoreItemIds.Contains( entry.InstanceId ),
+				entry.InstanceId == _selectedPlayerItemId
+			) );
+		}
+
+		return items;
+	}
+
+	IReadOnlyList<InventoryGridItem> BuildContainerGridItems()
+	{
+		if ( !_container.IsValid() )
+			return EmptyGridItems;
+
+		EnsureDefinitionCache();
+
+		var items = new List<InventoryGridItem>( _container.LocalEntries.Count );
+
+		foreach ( var entry in _container.LocalEntries )
+		{
+			var definition = ResolveDefinition( entry.ItemId );
+			int defWidth = definition?.GridWidth ?? 1;
+			int defHeight = definition?.GridHeight ?? 1;
+
+			items.Add( new InventoryGridItem(
+				entry.InstanceId,
+				entry.ItemId,
+				definition?.DisplayName ?? entry.ItemId,
+				definition?.Icon,
+				entry.Quantity,
+				entry.X,
+				entry.Y,
+				entry.IsRotated ? defHeight : defWidth,
+				entry.IsRotated ? defWidth : defHeight,
+				entry.IsRotated,
+				_pendingTakeItemIds.Contains( entry.InstanceId ),
+				entry.InstanceId == _selectedContainerItemId
+			) );
+		}
+
+		return items;
+	}
+
+	// Sélection locale uniquement — aucun RPC, aucune mutation de snapshot. Voir mission section 15.
+	void SelectPlayerItem( string instanceId ) => _selectedPlayerItemId = instanceId;
+
+	void SelectContainerItem( string instanceId ) => _selectedContainerItemId = instanceId;
 
 	// Ne transmet que l'InstanceId/le slot sélectionné dans le snapshot local — aucune donnée métier
 	// (définition, quantité, position) envoyée ; le host revalide tout. Mêmes points d'entrée déjà

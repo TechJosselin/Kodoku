@@ -1,0 +1,97 @@
+@using System;
+@using System.Collections.Generic;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Kodoku.UI
+@inherits Panel
+
+<root style="width: @(GridWidthPx)px; height: @(GridHeightPx)px;">
+	@for ( int i = 0; i < Width * Height; i++ )
+	{
+		int x = i % Width;
+		int y = i / Width;
+
+		<div class="cell" style="left: @(CellLeft( x ))px; top: @(CellTop( y ))px; width: @(CellSize)px; height: @(CellSize)px;"></div>
+	}
+
+	@if ( Items is not null )
+	{
+		@foreach ( var entry in Items )
+		{
+			// Capture explicite par lambda de clic, distincte de la variable de boucle — même patron
+			// défensif que GameMenu.razor (le foreach C# capture déjà une variable fraîche par itération
+			// depuis C# 5, mais cette capture explicite protège un futur refactor du piège classique).
+			var captured = entry;
+
+			<div class="item @( captured.IsPending ? "pending" : "" ) @( captured.IsSelected ? "selected" : "" )"
+				style="left: @(CellLeft( captured.X ))px; top: @(CellTop( captured.Y ))px; width: @(ItemSizePx( captured.Width ))px; height: @(ItemSizePx( captured.Height ))px;"
+				onclick=@( () => OnItemClicked?.Invoke( captured.InstanceId ) )>
+
+				<div class="icon">
+					@if ( captured.Icon is not null )
+					{
+						<Image Texture="@captured.Icon"></Image>
+					}
+					else
+					{
+						<div class="icon-fallback"></div>
+					}
+				</div>
+
+				@if ( captured.Quantity > 1 )
+				{
+					<div class="qty">x@(captured.Quantity)</div>
+				}
+
+				@if ( captured.IsRotated )
+				{
+					<div class="rotated-indicator">R</div>
+				}
+
+				@if ( captured.Width > 1 || captured.Height > 1 )
+				{
+					<div class="name">@captured.DisplayName</div>
+				}
+			</div>
+		}
+	}
+</root>
+
+@code
+{
+	/// <summary>Largeur de la grille en cellules — dimension métier transmise par le parent, jamais décidée ici.</summary>
+	[Parameter] public int Width { get; set; }
+
+	/// <summary>Hauteur de la grille en cellules — même origine que <see cref="Width"/>.</summary>
+	[Parameter] public int Height { get; set; }
+
+	/// <summary>
+	/// Entrées à afficher, déjà résolues par le parent (icône, nom, taille visuelle tournée, pending,
+	/// sélection). Ce composant ne connaît ni <c>PlayerInventoryComponent</c> ni
+	/// <c>WorldContainerComponent</c> — uniquement cette forme de présentation.
+	/// </summary>
+	[Parameter] public IReadOnlyList<InventoryGridItem> Items { get; set; }
+
+	/// <summary>
+	/// Callback de clic transmis par le parent — reçoit uniquement l'<c>InstanceId</c> de l'entrée
+	/// cliquée. Ce composant n'envoie jamais de RPC et ne décide jamais de l'action à effectuer.
+	/// </summary>
+	[Parameter] public Action<string> OnItemClicked { get; set; }
+
+	/// <summary>Taille d'une cellule carrée, en pixels — identique pour la grille joueur et la grille conteneur (voir mission section 11).</summary>
+	[Parameter] public int CellSize { get; set; } = 52;
+
+	/// <summary>Espace entre cellules, en pixels.</summary>
+	[Parameter] public int CellGap { get; set; } = 2;
+
+	int GridWidthPx => Width <= 0 ? 0 : Width * CellSize + ( Width - 1 ) * CellGap;
+	int GridHeightPx => Height <= 0 ? 0 : Height * CellSize + ( Height - 1 ) * CellGap;
+
+	int CellLeft( int x ) => x * ( CellSize + CellGap );
+	int CellTop( int y ) => y * ( CellSize + CellGap );
+
+	// Taille visuelle d'un item en pixels pour un nombre de cellules donné (déjà la dimension tournée —
+	// voir InventoryGridItem.Width/Height) : N cellules pleines + (N-1) espaces entre elles, jamais un
+	// simple N * CellSize qui omettrait les gaps internes à l'item.
+	int ItemSizePx( int cells ) => cells * CellSize + ( cells - 1 ) * CellGap;
+}
