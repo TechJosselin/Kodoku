@@ -13,7 +13,7 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 {
 	/// <summary>
 	/// Le pawn Kodoku possédé par cette connexion locale, ou null si aucun n'est actuellement contrôlé.
-	/// Ne jamais assigné par un proxy distant — voir <see cref="StartControl"/>/<see cref="StopControl"/>.
+	/// Ne jamais assigné par un proxy distant — voir <see cref="IGameObjectNetworkEvents.StartControl"/>/<see cref="IGameObjectNetworkEvents.StopControl"/>.
 	/// </summary>
 	public static KodokuPlayerComponent Local { get; private set; }
 
@@ -30,7 +30,7 @@ public sealed class KodokuPlayerComponent : Component, IGameObjectNetworkEvents
 	public PlayerVitalsComponent PlayerVitals { get; private set; }
 
 	public PlayerInventoryComponent PlayerInventory { get; private set; }
-
+ 
 	public PlayerItemDropComponent PlayerItemDrop { get; private set; }
 
 	public PlayerItemUseComponent PlayerItemUse { get; private set; }
