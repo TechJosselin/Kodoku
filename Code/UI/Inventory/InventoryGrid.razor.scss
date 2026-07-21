@@ -1,0 +1,93 @@
+InventoryGrid {
+	position: relative;
+	flex-shrink: 0;
+	overflow: hidden;
+
+	.cell {
+		position: absolute;
+		background-color: rgba( 255, 255, 255, 0.04 );
+		border: 1px solid rgba( 255, 255, 255, 0.06 );
+		border-radius: 3px;
+
+		// Garantit qu'une cellule vide ne peut jamais intercepter un clic destiné à un item qui la
+		// recouvre, indépendamment de l'ordre de peinture — ne dépend pas uniquement du fait que les
+		// items soient rendus après les cellules dans le DOM (voir InventoryGrid.razor).
+		pointer-events: none;
+	}
+
+	.item {
+		position: absolute;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		background-color: rgba( 255, 255, 255, 0.1 );
+		border: 1px solid rgba( 255, 255, 255, 0.18 );
+		border-radius: 4px;
+		overflow: hidden;
+		padding: 2px;
+
+		&:hover {
+			background-color: rgba( 255, 255, 255, 0.18 );
+		}
+
+		&.selected {
+			border-color: white;
+			background-color: rgba( 255, 255, 255, 0.28 );
+		}
+
+		&.pending {
+			opacity: 0.5;
+		}
+
+		.icon {
+			flex-grow: 1;
+			width: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 0;
+
+			Image {
+				width: 70%;
+				height: 70%;
+			}
+
+			.icon-fallback {
+				width: 70%;
+				height: 70%;
+				background-color: rgba( 255, 255, 255, 0.15 );
+				border-radius: 3px;
+			}
+		}
+
+		.qty {
+			position: absolute;
+			right: 3px;
+			bottom: 2px;
+			font-size: 10px;
+			color: rgba( 255, 255, 255, 0.85 );
+			text-shadow: 0px 1px 2px rgba( 0, 0, 0, 0.8 );
+		}
+
+		.rotated-indicator {
+			position: absolute;
+			left: 3px;
+			top: 2px;
+			font-size: 9px;
+			font-weight: 700;
+			color: rgba( 255, 255, 255, 0.65 );
+		}
+
+		.name {
+			flex-shrink: 0;
+			font-size: 10px;
+			color: rgba( 255, 255, 255, 0.85 );
+			text-align: center;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			max-width: 100%;
+		}
+	}
+}

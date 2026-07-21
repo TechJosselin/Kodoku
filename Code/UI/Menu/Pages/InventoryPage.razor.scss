@@ -60,6 +60,44 @@ InventoryPage {
 		gap: 4px;
 	}
 
+	// Zone de défilement propre pour InventoryGrid — auto plutôt que hidden : si la grille dépasse
+	// l'espace disponible de la colonne, une scrollbar native apparaît, jamais un panneau
+	// glisser/panner (voir mission section 11). Aucune scrollbar visible tant que le contenu tient
+	// dans l'espace disponible.
+	.grid-viewport {
+		overflow: auto;
+	}
+
+	.actions-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 8px 10px;
+		background-color: rgba( 255, 255, 255, 0.05 );
+		border-radius: 4px;
+
+		.selected-info {
+			font-size: 13px;
+
+			.qty {
+				color: rgba( 255, 255, 255, 0.5 );
+				font-size: 11px;
+			}
+
+			&.empty {
+				color: rgba( 255, 255, 255, 0.4 );
+				font-style: italic;
+			}
+		}
+
+		.actions {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			gap: 6px;
+		}
+	}
+
 	.entry {
 		display: flex;
 		align-items: center;
