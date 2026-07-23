@@ -1,14 +1,14 @@
 {
-  "ItemId": "kodoku.consumable.water_bottle",
-  "DisplayName": "Water Bottle",
-  "Description": "A sealed bottle of drinking water.",
+  "ItemId": "kodoku.consumable.chicken_bucket",
+  "DisplayName": "Chicken Bucket",
+  "Description": "A Bucket with chicken",
   "Category": "Consumable",
-  "Tags": "Drink, Water",
+  "Tags": "None",
   "Icon": {
     "$compiler": "texture",
     "$source": "imagefile",
     "data": {
-      "FilePath": "ui/game/icons/items/consumables/drinks/icon_water.png",
+      "FilePath": "ui/game/icons/items/consumables/foods/chicken_bucket/icon_chicken_bucket.png",
       "MaxSize": 4096,
       "ConvertHeightToNormals": false,
       "NormalScale": 1,
@@ -43,14 +43,14 @@
     "compiled": null
   },
   "GridWidth": 1,
-  "GridHeight": 2,
-  "CanRotate": true,
-  "Weight": 0.6,
+  "GridHeight": 1,
+  "CanRotate": false,
+  "Weight": 0,
   "MaxStack": 1,
   "EquipmentSlot": "None",
-  "ThirstRestoreAmount": 40,
+  "ThirstRestoreAmount": 2,
   "WorldModel": null,
-  "WorldPrefabOverride": "prefabs/items/consumables/drinks/water_bottle.prefab",
+  "WorldPrefabOverride": "prefabs/items/consumables/foods/chicken_bucket/chicken_bucket.prefab",
   "__references": [],
   "__version": 0
 }
