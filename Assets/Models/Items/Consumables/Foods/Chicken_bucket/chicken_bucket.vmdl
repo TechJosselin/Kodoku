@@ -42,7 +42,7 @@
 						collision_tags = "solid"
 						faceMergeAngle = 20.0
 						maxHullVertices = 32
-						hull_mode = "HullPerElement"
+						hull_mode = "SingleHull"
 					},
 				]
 			},
