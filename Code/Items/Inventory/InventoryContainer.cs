@@ -255,6 +255,29 @@ public sealed class InventoryContainer
 		return InventoryOperationResult.Ok( placement );
 	}
 
+	/// <summary>
+	/// Augmente la <see cref="ItemInstance.Quantity"/> d'un placement existant, borné par
+	/// <see cref="ItemDefinition.MaxStack"/> — pendant « croissance » de <see cref="TryConsume"/>,
+	/// nécessaire pour composer une fusion de piles (voir docs/architecture/INVENTORY_STACK_ARCHITECTURE.md,
+	/// section 5). Ne connaît qu'un seul conteneur, ne crée jamais de nouvelle <see cref="ItemInstance"/>,
+	/// ne recherche jamais elle-même une pile compatible : c'est une mutation locale bornée, la
+	/// compatibilité et l'orchestration à deux conteneurs appartiennent à
+	/// <c>InventoryStackTransactions</c>.
+	/// </summary>
+	public InventoryOperationResult TryGrowQuantity( Guid instanceId, int amount )
+	{
+		if ( !_byInstanceId.TryGetValue( instanceId, out var placement ) )
+			return InventoryOperationResult.Fail( InventoryFailureReason.ItemNotFound );
+
+		if ( amount < 1 )
+			return InventoryOperationResult.Fail( InventoryFailureReason.InvalidQuantity );
+
+		if ( !placement.Item.TryAddQuantity( amount ) )
+			return InventoryOperationResult.Fail( InventoryFailureReason.InvalidQuantity );
+
+		return InventoryOperationResult.Ok( placement );
+	}
+
 	void AddPlacement( InventoryPlacement placement )
 	{
 		_placements.Add( placement );
